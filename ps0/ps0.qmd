@@ -8,12 +8,16 @@ jupyter: python3
 
 For a demonstration of a line plot on a polar axis, see @fig-polar.
 
+Code taken from: https://quarto.org/docs/get-started/hello/text-editor.html
+
 ```{python}
 #| label: fig-polar
 #| fig-cap: "A line plot on a polar axis"
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+print("This is some arbitrary sentence.")
 
 r = np.arange(0, 2, 0.01)
 theta = 2 * np.pi * r
