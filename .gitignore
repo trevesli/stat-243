@@ -4,6 +4,3 @@
 # pickle files
 *.pkl
 *.pickle
-
-# .csv files
-*.csv
