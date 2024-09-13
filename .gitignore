@@ -1,0 +1,9 @@
+# cache directories
+/__pycache__
+
+# pickle files
+*.pkl
+*.pickle
+
+# .csv files
+*.csv
