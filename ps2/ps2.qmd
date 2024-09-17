@@ -2,7 +2,6 @@
 title: "STAT 243 Problem Set 2"
 author: "Treves Li"
 date: now
-highlight-style: pygments
 format: pdf
 engine: knitr
 output: true
@@ -15,22 +14,107 @@ I did not collaborate with anyone.
 ## Question 1
 > A friend of mine is planning to get married in Death Valley National Park in March (this problem is based on real events…). She wants to hold it as late in March as possible but without having a high chance of a very hot day. This problem will automate the task of generating information about what day of March to hold the wedding using data from the [Global Historical Climatology Network](https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/by_year). All of your operations should be done using the bash shell except part (c). Also, ALL of your work should be done using shell commands that you save in your solution file. So you can’t say “I downloaded the data from such-and-such website” or “I unzipped the file”; you need to give us the bash code that we could run to repeat what you did. This is partly for practice in writing shell code and partly to enforce the idea that your work should be reproducible and documented.
 
+
+{{< pagebreak >}}
+
+
 ## Question 1a
 > Download yearly climate data for a set of years of interest into a temporary directory. Do not download all the years and feel free to focus on a small number of years to reduce the amount of data you need to download. Note that data for Death Valley is only present in the last few decades. As you are processing the files, report the number of observations in each year by printing the information to the screen (i.e., `stdout`), including if there are no observations for that year.
 
+This required testing the `for` loop on 2 years of data, before running the loop on a bigger range of 10 years, since the datasets are quite big and would take a while to `wget`!
 ```{bash}
-echo Hello
+#| label: 1a
+#| cache: true
+
+# First we make a temporary directory
+mkdir -p "tmp"
+
+for year in {2014..2024};
+do
+    url="https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/by_year/${year}.csv.gz"
+
+    # `wget` climate data for last 10 years (2014-2024)
+    # Save files into temp
+    # Use `-q` flag to silence output; `-O` flag to specify output filename
+    wget -qO "tmp/${year}.csv.gz" $url 
+
+    # Unzip files (`gunzip` removes the `.gz`s automatically)
+    # `-f` to force overwrite if .csv already exists
+    gunzip -f "tmp/${year}.csv.gz"
+
+    # Report the number of observations in each year
+    echo "${year} had $(wc -l < tmp/${year}.csv) observations."
+done 
 ```
-```{python}
-print("foo bar")
-# some code
-```
+
+
+{{< pagebreak >}}
+
 
 ## Question 1b
 > Subset to the station corresponding to Death Valley, to the TMAX (maximum daily temperature) variable, and to March, and put all the data into a single file. In subsetting to Death Valley, get the information programmatically from the `ghcnd-stations.txt` file one level up in the website. Do NOT type in the station ID code when you retrieve the Death Valley data from the yearly files.
 
+First we have to find Death Valley's station ID.
+```{bash}
+#| label: 1b Station ID
+#| cache: true
+
+# Fetch `ghcnd-stations.txt`
+stations="ghcnd-stations.txt"
+wget -qO "tmp/$stations" "https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/$stations"
+
+# Get station ID using `grep` and `cut`, and save the output as variable `dvnp_id
+# `-i` flag indicates case-insensitive match
+# Had to open the .txt to find that the .txt was space delimited
+dvnp_id=$(grep -i "death valley" tmp/$stations | cut -d" " -f1)
+echo "The station ID code for Death Valley is $dvnp_id."
+
+# Delete the stations .txt file
+rm tmp/$stations
+```
+
+Then for each year, find the value corresponding to DVNP -> TMAX -> March. I use `awk` instead of `grep` since it's more adept at multiple column filtering.
+Again, I first tested the `for` loop on a handful of years, before extending to the larger range of years. 
+```{bash}
+#| label: 1b
+#| cache: true
+
+# First create a textfile in which to save the data
+touch dv_tmax_march.txt
+
+# `awk` filtering on three substrings, three columns
+# Use regex on col2 to extract dates for March
+# Print commas as delimiters
+# Append filtered data to textfile
+for year in {2014..2024};
+do
+    awk -F',' -v col1=$dvnp_id -v col2=".{4}03.{2}" -v col3="TMAX" \
+        '$1 ~ col1 && $2 ~ col2 && $3 ~ col3 \
+        {print $1 "," $2 "," $3 "," $4}' tmp/${year}.csv \
+        >> dv_tmax_march.txt
+done
+```
+
+
+{{< pagebreak >}}
+
+
 ## Question 1c
 > Create a Python chunk (or R would be fine too) that takes as input your single file from (b) and makes a single plot showing side-by-side boxplots containing the maximum daily temperatures on each calendar day in March. (If you somehow really have trouble mixing Python and bash chunks, it’s ok to insert this figure manually, after running the Python code separately. In this case you could use the `jupyter` engine provided that a bash kernel is available for Jupyter.)
+
+General steps would be to read in my `.txt` file as a DataFrame (or similar Python object). Then I need to group the data in the `.txt` file by day of the calendar month. Lastly, I need to look at the documentation for how to make boxplots using `matplotlib`. 
+```{python}
+# Read in dv_tmax_march.txt file as df
+
+# Initialise arrays for each day of March
+# ... some for loop ...
+
+# Group existing data as days in March
+# ... some for loop ...
+
+# Use matplotlib to make a box chart
+# Remember axes and titles
+```
 
 ## Question 1d
 > Now generalize your code from parts (a) and (b). Write a shell function that takes as arguments a string for identifying the location, the weather variable of interest, and the time period (i.e., the years of interest and the month of interest), and returns the results. Your function should detect if the user provides the wrong number of arguments or a string that doesn’t allow one to identify a single weather station and return a useful error message. It should also give useful help information if the user invokes the function as: `get_weather -h`. Finally the function should remove the raw downloaded data files (or you should download into your operating system’s temporary file location).
@@ -41,10 +125,6 @@ print("foo bar")
 
 
 {{< pagebreak >}}
-
-
-## Question 2
-> This problem uses the ideas and tools in Unit 2, Sections 1-3 to explore approaches to reading and writing data from files and to consider file sizes in ASCII plain text vs. binary formats in light of the fact that numbers are (generally) stored as 8 bytes per number in binary formats.
 
 
 ## Question 2
