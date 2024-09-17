@@ -103,18 +103,82 @@ done
 > Create a Python chunk (or R would be fine too) that takes as input your single file from (b) and makes a single plot showing side-by-side boxplots containing the maximum daily temperatures on each calendar day in March. (If you somehow really have trouble mixing Python and bash chunks, it’s ok to insert this figure manually, after running the Python code separately. In this case you could use the `jupyter` engine provided that a bash kernel is available for Jupyter.)
 
 General steps would be to read in my `.txt` file as a DataFrame (or similar Python object). Then I need to group the data in the `.txt` file by day of the calendar month. Lastly, I need to look at the documentation for how to make boxplots using `matplotlib`. 
+
+It's important to note that `TMAX` is in tenths of degrees C. Took me too long to figure this out, but it is documented in NOAA's [readme](https://www.ncei.noaa.gov/pub/data/ghcn/daily/readme.txt) for this dataset. 
 ```{python}
+#| label: 1c
+#| cache: true
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
 # Read in dv_tmax_march.txt file as df
+df = pd.read_csv("dv_tmax_march.txt", header=None)
 
-# Initialise arrays for each day of March
-# ... some for loop ...
+# Rename headers to make things easier to work with
+df = df.rename(
+    columns={
+        0: "station_id",
+        1: "date",
+        3: "tmax",
+    }
+)
 
-# Group existing data as days in March
-# ... some for loop ...
+# Change date column to string, for better string matching
+df["date"] = df["date"].astype(str)
+
+# Initialise a list to store tmax values grouped by day
+tmax_march_days = []
+
+# Initialise arrays for each day of March (31 days in March )
+for day in range(1, 32):
+    # Change `day` format so it's a 2 digit string
+    day = f"{day:02d}"
+
+    # Do filtering
+    tmax_by_day = df.loc[df["date"].str[-2:] == day, "tmax"].values
+
+    # Divide values by 10 to get degrees C
+    tmax_by_day = tmax_by_day / 10
+
+    # Append information to tmax_march_days
+    tmax_march_days.append(tmax_by_day)
+
+# Convert list to dataframe
+df_tmax = pd.DataFrame(tmax_march_days)
+
+# Rename columns to years in df_tmax
+start_year = 2014
+end_year = 2024
+years = list(range(start_year, end_year + 1))
+df_tmax.columns = years
+
+# Re-index rows in df_tmax to correspond to days of months (i.e., start at 1)
+df_tmax.index = df_tmax.index + 1
+
+# Print output to check
+# print(df_tmax)
 
 # Use matplotlib to make a box chart
-# Remember axes and titles
+plt.figure(figsize=(10, 6))
+plt.boxplot(df_tmax.values.T);
+plt.title(f"Maximum Daily Temperatures in March\n \
+    Death Valley National Park\n\
+    {start_year} to {end_year}")
+plt.xlabel("Calendar Day")
+plt.ylabel("Degrees C")
+plt.grid(True)
+plt.show()
 ```
+
+Lastly, I lint the code above to make it adhere to standard (I worked on the python code in a separate `.py` file, then pasted the linted code above):
+```{bash}
+ruff check
+ruff format
+```
+
+{{< pagebreak >}}
+
 
 ## Question 1d
 > Now generalize your code from parts (a) and (b). Write a shell function that takes as arguments a string for identifying the location, the weather variable of interest, and the time period (i.e., the years of interest and the month of interest), and returns the results. Your function should detect if the user provides the wrong number of arguments or a string that doesn’t allow one to identify a single weather station and return a useful error message. It should also give useful help information if the user invokes the function as: `get_weather -h`. Finally the function should remove the raw downloaded data files (or you should download into your operating system’s temporary file location).
