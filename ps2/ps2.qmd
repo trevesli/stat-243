@@ -203,6 +203,7 @@ I wrote the code so that if there are multiple matches for a place name, I progr
 
 ```{bash}
 #| label: 1d
+#| cache: true
 #| error: True
 
 function get_weather() {
@@ -296,18 +297,13 @@ function get_weather() {
         # `-f` to force overwrite if .csv already exists
         gunzip -f "${tmp_dir}/${year}.csv.gz"
 
-        # Report if there are no observations for a year
+        awk -F',' -v col1="$station_id" -v col2="$month" -v col3=$2 \
+            '$1 == col1 && substr($2, 5, 2) == col2 && $3 == toupper(col3) \
+            {print $1 "," $2 "," $3 "," $4}' \
+            "${tmp_dir}/${year}.csv"
+
         if ! grep $station_id "${tmp_dir}/${year}.csv"; then
-            echo "No records found for "$1" in ${year}."
-        else
-            # Print the results data to `stdout`
-            # `awk` filtering on three variables, three columns
-            # Print commas as delimiters
-            col3_upper=$(echo "$2" | tr '[:lower:]' '[:upper:]')
-            awk -F',' -v col1="$station_id" -v col2="$month" -v col3="$col3_upper" \
-                '$1 == col1 && substr($2, 5, 2) == col2 && $3 == col3 \
-                {print $1 "," $2 "," $3 "," $4}' \
-                "${tmp_dir}/${year}.csv"
+            echo "No records found for \"$1\" in ${year}."
         fi
     done
 
@@ -325,15 +321,15 @@ echo "The following line should throw an error:"
 get_weather "mordor" "TMAX" 2023 2024 3
 echo
 
-echo "The following line should work:"
+echo "The following line should give help info:"
 get_weather -h
 echo
 
-echo "The following line should work:"
+echo "The following line should work (no records found):"
 get_weather "death valley" "TMAX" 1770 1771 2
 echo
 
-echo "The following line should work:"
+echo "The following line should work (no records found):"
 get_weather "north pole" "TMIN" 1994 1995 12
 echo
 
@@ -342,10 +338,9 @@ get_weather "death valley" "TMAX" 2023 2024 8 | head -n 10
 echo
 
 echo "The following line should work (output truncated to 10 lines):"
-#get_weather "KOTZEBUE" "tmin" 1994 1995 12 | head -n 10
+get_weather "KOTZEBUE" "tmin" 1994 1995 12 | head -n 10
 echo
 ```
-
 
 {{< pagebreak >}}
 
@@ -356,7 +351,12 @@ echo
 ## Question 2a
 > Add informative doc strings to your functions.
 ```{python}
+#| label: 2a
+#| cache: true
+
 import subprocess
+import requests
+import pandas as pd
 from bs4 import BeautifulSoup as bs
 
 def get_scholar_citations(scholar_id):
@@ -446,23 +446,196 @@ def get_scholar_info(filename):
         df = pd.concat([df, new_row], ignore_index=True)
 
     return df
-
-
-pd.set_option("display.max_colwidth", 20)
-display(get_scholar_info("scholar.html"))
-display(get_scholar_info("scholar2.html"))
 ```
+
+
+{{< pagebreak >}}
+
 
 ## Question 2b
 > Add exceptions for handling run-time errors. You should try to catch the various incorrect inputs a user could provide and anything else that could go wrong (e.g., what happens if the server refuses the request or if one is not online?). In some cases you will want to raise an error, but in others you may want to catch an error with `try-except` and return `None`.
 
 Errors to try for `get_scholar_citations()`:
+
 * Server does not exist or is not online
 * Server rejects the request
 
 Errors to try for `get_scholar_info()`:
+
 * Filename doesn't exist
 * File is not in html format
 
+I was unfamiliar with `try-except`, so I used ChatGPT to assist with the syntax.
+```{python}
+#| label: 2b
+#| cache: true
+
+def get_scholar_citations(scholar_id):
+    """Given a valid scholar ID as input,
+    construct an http GET request 
+    (and submit that request) to get a 
+    scholar's first citations page from Google Scholar.
+
+    Args:
+      scholar_id (str): Google scholar ID
+
+    Returns:
+      citations_html (python object): The scholar's citations, or None if error
+    """
+    url = (
+        "https://scholar.google.com/citations?user=" 
+        + str(scholar_id) 
+        + "&hl=en&oi=ao"
+    )
+    saved_html = "scholar.html"
+
+    try:
+        # Check if we can access URL
+        response = requests.get(url)
+        response.raise_for_status()
+    except requests.RequestException as message:
+        print(f"Error fetching URL: {message}")
+        return None
+
+    try:
+        # Check for 429 errors
+        subprocess.run(
+            ["wget", "-qO", saved_html, url],  
+            check=True,  
+        )
+    except subprocess.CalledProcessError as message:
+        print(f"Error downloading file: {message}")
+        return None
+
+    try:
+        # Check if there are issues with the html
+        with open(saved_html, "r", encoding="ISO-8859-1") as file:
+            citations_html = bs(file, "html.parser")
+    except FileNotFoundError:
+        print("Error: File not Foudn.")
+        return None
+    except Exception as message:
+        print(f"Error with file: {message}")
+        return None
+
+    return citations_html
+
+
+
+def get_scholar_info(filename):
+    """Given the filename for a raw HTML,
+    process the html to get scholar citation 
+    information stored as a dataframe.
+
+    Args:
+      filename (str): Path to the raw HTML file
+
+    Returns:
+      df (Pandas dataframe): The scholar's information, or None error
+    """
+    try:
+        # Open and read the html using BeautifulSoup
+        with open(filename, "r", encoding="ISO-8859-1") as file:
+            citations_html = bs(file, "html.parser")
+    except FileNotFoundError:
+        print(f"Error: '{filename}' not found.")
+        return None
+    except IOError:
+        print("Error: Can't read file.")
+        return None
+    except Exception as message:
+        print(f"Error reading file: {message}")
+        return None
+
+    # Define df to store info with defined column labels
+    df = pd.DataFrame(columns=["title", "authors", "journal", "year", "num_cite"])
+
+    try:
+        # Identify the scholar
+        scholar = citations_html.find("div", attrs={"id": "gsc_prf_in"}).text
+
+        # Create a list of citations
+        citations = citations_html.find_all("tr", attrs={"class": "gsc_a_tr"})
+
+        print(f"Found {len(citations)} entries for {scholar}.")
+
+        # For each entry, extract relevant data
+        for entry in citations:
+            title = entry.find("a", class_="gsc_a_at").text
+            authors = entry.find_all("div", class_="gs_gray")[0].text
+            journal = entry.find_all("div", class_="gs_gray")[1].text
+            year = entry.find("span", class_="gsc_a_h").text
+            num_cite = entry.find("a", class_="gsc_a_ac").text
+
+            # Append all data to a new row in the df
+            new_row = pd.DataFrame([{
+                        "title": title,
+                        "authors": authors,
+                        "journal": journal,
+                        "year": year,
+                        "num_cite": num_cite,
+                    }])
+            df = pd.concat([df, new_row], ignore_index=True)
+
+    except Exception as message:
+        print(f"Error processing html: {message}")
+        return None
+
+    return df
+```
+
+{{< pagebreak >}}
+
+
 ## Question 2c
 > Use the `pytest` package to set up a thoughtful set of unit tests of your functions.
+
+I set up two cases where the code should work:
+
+* One where `get_scholar_citations` returns a bs object
+* Another where `get_scholar_info` does not return None when
+
+And another three tests where they shouldn't:
+
+* When an in invalid scholar ID is given
+* When a file does not exist or is missing
+* If a bad html is passed as the file to be parsed
+```{python}
+#| label: 2c
+#| cache: true
+
+def test_get_scholar_citations():
+    # given a scholar id, get citations as bs object
+    scholar_id = "yxUduqMAAAAJ"
+    result = get_scholar_citations(scholar_id)
+    assert result is isinstance(result, bs)
+
+
+def test_get_scholar_info():
+    # checks that we don't return None
+    # when a valid html exists
+    filename = r"../ps1/scholar2.html"
+    result = get_scholar_info(filename)
+    assert result is not None
+
+
+def test_get_scholar_citations_invalid_id():
+    # what if the scholar ID is invalid?
+    scholar_id = "some_random_string"
+    result = get_scholar_citations(scholar_id)
+    assert result is None  # scholar ID is invalid
+
+
+def test_get_scholar_info_no_file():
+    # what if no file found?
+    filename = "random.html"
+    result = get_scholar_info(filename)
+    assert result is None
+
+
+def test_get_scholar_info_bad_html():
+    # Intentionally corrupted some html
+    filename = "scholar2_bad.html"
+    result = get_scholar_info(filename)
+    assert result is None
+```
