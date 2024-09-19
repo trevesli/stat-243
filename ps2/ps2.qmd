@@ -342,7 +342,7 @@ get_weather "death valley" "TMAX" 2023 2024 8 | head -n 10
 echo
 
 echo "The following line should work (output truncated to 10 lines):"
-get_weather "KOTZEBUE" "tmin" 1994 1995 12 | head -n 10
+#get_weather "KOTZEBUE" "tmin" 1994 1995 12 | head -n 10
 echo
 ```
 
@@ -355,9 +355,114 @@ echo
 
 ## Question 2a
 > Add informative doc strings to your functions.
+```{python}
+import subprocess
+from bs4 import BeautifulSoup as bs
+
+def get_scholar_citations(scholar_id):
+    """Given a valid scholar ID as input,
+    construct an http GET request 
+    (and submit that request) to get a 
+    scholar's first citations page from Google Scholar.
+
+    Args:
+      scholar_id (str): Google scholar ID
+
+    Returns:
+      citations_html (python object): The scholar's citations
+    """
+
+    # Define the url
+    url = (
+        "https://scholar.google.com/citations?user=" 
+        + str(scholar_id) 
+        + "&hl=en&oi=ao"
+    )
+
+    # Define the saved html; give it a filename
+    saved_html = "scholar.html"
+
+    # Download the html via UNIX to avoid 429 errors
+    subprocess.run(
+        ["wget", "-qO", saved_html, url],  # save to scholar.html
+        check=True,  # raise errors if any
+    )
+
+    # Open and read the html using BeautifulSoup
+    with open(saved_html, "r", encoding="ISO-8859-1") as file:
+        citations_html = bs(file, "html.parser")
+    
+    return citations_html
+
+def get_scholar_info(filename):
+    """Given the filename for a raw HTML,
+    process the html to get scholar citation 
+    information stored as a dataframe.
+
+    Args:
+      html (object): html with scholar's citations
+
+    Returns:
+      df (Pandas dataframe): The scholar's information
+    """
+
+    # Open and read the html using BeautifulSoup
+    with open(filename, "r", encoding="ISO-8859-1") as file:
+        citations_html = bs(file, "html.parser")
+
+    # Define df to store info with defined column labels
+    df = pd.DataFrame(columns=["title", "authors", "journal", "year", "num_cite"])
+
+    # Identify the scholar
+    scholar = citations_html.find("div", attrs={"id": "gsc_prf_in"}).text
+
+    # Create a list of citations
+    citations = citations_html.find_all("tr", attrs={"class": "gsc_a_tr"})
+
+    print(f"Found {len(citations)} entries for {scholar}.")
+
+    # For each entry, extract relevant data
+    # Note that authors and journal share html tags
+    # so need to call them by their element
+    for entry in citations:
+        title = entry.find("a", class_="gsc_a_at").text
+        authors = entry.find_all("div", class_="gs_gray")[0].text
+        journal = entry.find_all("div", class_="gs_gray")[1].text
+        year = entry.find("span", class_="gsc_a_h").text
+        num_cite = entry.find("a", class_="gsc_a_ac").text
+
+        # Append all data to a new row in the df
+        new_row = pd.DataFrame(
+            [
+                {
+                    "title": title,
+                    "authors": authors,
+                    "journal": journal,
+                    "year": year,
+                    "num_cite": num_cite,
+                }
+            ]
+        )
+        df = pd.concat([df, new_row], ignore_index=True)
+
+    return df
+
+
+pd.set_option("display.max_colwidth", 20)
+display(get_scholar_info("scholar.html"))
+display(get_scholar_info("scholar2.html"))
+```
 
 ## Question 2b
 > Add exceptions for handling run-time errors. You should try to catch the various incorrect inputs a user could provide and anything else that could go wrong (e.g., what happens if the server refuses the request or if one is not online?). In some cases you will want to raise an error, but in others you may want to catch an error with `try-except` and return `None`.
+
+Errors to try for `get_scholar_citations()`:
+* Server does not exist or is not online
+* Server rejects the request
+
+Errors to try for `get_scholar_info()`:
+* Filename doesn't exist
+* File is not in html format
 
 ## Question 2c
 > Use the `pytest` package to set up a thoughtful set of unit tests of your functions.
