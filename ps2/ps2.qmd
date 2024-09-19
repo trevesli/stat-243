@@ -33,8 +33,8 @@ for year in {2014..2024};
 do
     url="https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/by_year/${year}.csv.gz"
 
-    # `wget` climate data for last 10 years (2014-2024)
-    # Save files into temp
+    # `wget` climate data recent years to 2024
+    # Save files into temp directory
     # Use `-q` flag to silence output; `-O` flag to specify output filename
     wget -qO "tmp/${year}.csv.gz" $url 
 
@@ -42,8 +42,13 @@ do
     # `-f` to force overwrite if .csv already exists
     gunzip -f "tmp/${year}.csv.gz"
 
-    # Report the number of observations in each year
-    echo "${year} had $(wc -l < tmp/${year}.csv) observations."
+    # Report if there are no observations for a year
+    if [ ! -s "tmp/${year}.csv" ]; then
+        echo "No records found for ${year}."
+    else
+        # Report the number of observations in each year
+        echo "${year} had $(wc -l < tmp/${year}.csv) observations."
+    fi
 done 
 ```
 
@@ -63,7 +68,7 @@ First we have to find Death Valley's station ID.
 stations="ghcnd-stations.txt"
 wget -qO "tmp/$stations" "https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/$stations"
 
-# Get station ID using `grep` and `cut`, and save the output as variable `dvnp_id
+# Get station ID using `grep` and `cut`, and save the output as variable `dvnp_id`
 # `-i` flag indicates case-insensitive match
 # Had to open the .txt to find that the .txt was space delimited
 dvnp_id=$(grep -i "death valley" tmp/$stations | cut -d" " -f1)
@@ -104,7 +109,7 @@ done
 
 General steps would be to read in my `.txt` file as a DataFrame (or similar Python object). Then I need to group the data in the `.txt` file by day of the calendar month. Lastly, I need to look at the documentation for how to make boxplots using `matplotlib`. 
 
-It's important to note that `TMAX` is in tenths of degrees C. Took me too long to figure this out, but it is documented in NOAA's [readme](https://www.ncei.noaa.gov/pub/data/ghcn/daily/readme.txt) for this dataset. 
+It's important to note that the raw `TMAX` values are in tenths of degrees Celsius. It took me too long to figure this out, but it is documented in NOAA's [readme](https://www.ncei.noaa.gov/pub/data/ghcn/daily/readme.txt) for this dataset. 
 ```{python}
 #| label: 1c
 #| cache: true
@@ -177,6 +182,7 @@ ruff check
 ruff format
 ```
 
+
 {{< pagebreak >}}
 
 
@@ -186,6 +192,159 @@ ruff format
 > Hint: to check for equality in an if statement, you generally need syntax like:
 > 
 > `if [ "${var}" == "7" ]`
+
+When the `-h` flag is entered, I used ChatGPT to give ideas on how to incorporate it into my code.
+
+To counts the number of `args` passed to the function in bash, I relied on this [Stack Overflow thread](https://stackoverflow.com/questions/18568706/check-number-of-arguments-passed-to-a-bash-script).
+
+Note that in bash, `return 1` in a function indicates failure.
+
+I wrote the code so that if there are multiple matches for a place name, I programmed it so that only the observations for the first weather station that is matched is retrieved. Otherwise, if I called something like "Fairbanks", it would return a lot of weather station IDs and take too long to run.
+
+```{bash}
+#| label: 1d
+#| error: True
+
+function get_weather() {
+
+    ### INPUTS ###
+    # $1: station ID (str)
+    # $2: weather variable of interest (str)
+    # $3: start year of interest (int)
+    # $4: end year of interest (int)
+    # $5: month of interest (int)
+
+    ### OUTPUTS ###
+    # Death Valley data to `stdout`
+
+
+    ### HELP INFORMATION ###
+    # Check if help option is invoked
+    if [ "$1" == "-h" ]; then
+        echo "Usage: get_weather [station_id] [weather_var] [start_year] [end_year] [month]"
+        echo
+        echo
+        echo "Retrieves certain GHCN weather data for a given year range and month."
+        echo
+        echo "Arguments:"
+        echo "  station_id  The weather station ID (e.g., "USC00042319")"
+        echo "  weather_var See below for main variables"
+        echo "                  PRCP = Precipitation (tenths of mm)"
+   	    echo "                  SNOW = Snowfall (mm)"
+	    echo "                  SNWD = Snow depth (mm)"
+        echo "                  TMAX = Maximum temperature (tenths of degrees C)"
+        echo "                  TMIN = Minimum temperature (tenths of degrees C)"
+        echo "  start_year  The starting year of the range (e.g., 2019)"
+        echo "  end_year    The ending year of the range (e.g., 2024)"
+        echo "  month       The month in "dd" format"
+        echo
+        echo "Example:"
+        echo "  get_weather \"death valley\" \"TMAX\" 2023 2024 8"
+        return 0
+    fi
+
+    
+    ### ERROR CHECKING ###
+    # Check if user provides wrong number of args
+    if  [ "$#" -ne 5 ]; then
+        echo "Error: Function requires 5 arguments."
+        return 1
+    fi
+
+    # Fetch `ghcnd-stations.txt`
+    stations="ghcnd-stations.txt"
+    wget -qO "$stations" "https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/$stations"
+
+    # Check if input string $1 doesn't match a station in `ghcnd-stations.txt`
+    # `-i` flag in grep indicates case-insensitive match`
+    # `-q` flag to silence grep output
+    if ! cut -f1 $stations | grep -iq "$1"; then
+        echo "Error: No weather station found matching \"$1\"."
+        return 1
+    else
+        # Get station_id using `grep` and `cut`
+        # `-i` flag indicates case-insensitive match
+        # It will only get the first station ID match!
+        station_id=$(grep -i "$1" $stations | cut -d' ' -f1 | head -n 1)
+        echo "Found weather station(s) matching \"$1\" ("$station_id")."
+    fi
+
+
+    ### GET DATA ###
+    # Make a temporary directory in which to save files
+    tmp_dir="tmp_func"
+    mkdir -p "$tmp_dir"
+
+    # Process month as two digits
+    if [ $5 -lt 10 ]; then
+        month="0$5"
+    else
+        month="$5"
+    fi
+
+    # From part (a): get data from NOAA GHCN
+    for year in $(seq "$3" "$4");
+    do
+        url="https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/by_year/${year}.csv.gz"
+
+        # `wget` climate data for user specified number of years
+        # Save files into temp
+        # Use `-q` flag to silence output; `-O` flag to specify output filename
+        wget -qO "${tmp_dir}/${year}.csv.gz" "$url" 
+
+        # Unzip files (`gunzip` removes the `.gz`s automatically)
+        # `-f` to force overwrite if .csv already exists
+        gunzip -f "${tmp_dir}/${year}.csv.gz"
+
+        # Report if there are no observations for a year
+        if ! grep $station_id "${tmp_dir}/${year}.csv"; then
+            echo "No records found for "$1" in ${year}."
+        else
+            # Print the results data to `stdout`
+            # `awk` filtering on three variables, three columns
+            # Print commas as delimiters
+            col3_upper=$(echo "$2" | tr '[:lower:]' '[:upper:]')
+            awk -F',' -v col1="$station_id" -v col2="$month" -v col3="$col3_upper" \
+                '$1 == col1 && substr($2, 5, 2) == col2 && $3 == col3 \
+                {print $1 "," $2 "," $3 "," $4}' \
+                "${tmp_dir}/${year}.csv"
+        fi
+    done
+
+    # Remove raw downloaded data files (even if error above)
+    rm -r "$tmp_dir" "$stations"
+}
+
+# Try a few examples:
+
+echo "The following line should throw an error:"
+get_weather "death valley" "TMAX" 2023 3
+echo
+
+echo "The following line should throw an error:"
+get_weather "mordor" "TMAX" 2023 2024 3
+echo
+
+echo "The following line should work:"
+get_weather -h
+echo
+
+echo "The following line should work:"
+get_weather "death valley" "TMAX" 1770 1771 2
+echo
+
+echo "The following line should work:"
+get_weather "north pole" "TMIN" 1994 1995 12
+echo
+
+echo "The following line should work (output truncated to 10 lines):"
+get_weather "death valley" "TMAX" 2023 2024 8 | head -n 10
+echo
+
+echo "The following line should work (output truncated to 10 lines):"
+get_weather "KOTZEBUE" "tmin" 1994 1995 12 | head -n 10
+echo
+```
 
 
 {{< pagebreak >}}
