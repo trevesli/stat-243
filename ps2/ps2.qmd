@@ -21,7 +21,7 @@ I did not collaborate with anyone.
 ## Question 1a
 > Download yearly climate data for a set of years of interest into a temporary directory. Do not download all the years and feel free to focus on a small number of years to reduce the amount of data you need to download. Note that data for Death Valley is only present in the last few decades. As you are processing the files, report the number of observations in each year by printing the information to the screen (i.e., `stdout`), including if there are no observations for that year.
 
-This required testing the `for` loop on 2 years of data, before running the loop on a bigger range of 10 years, since the datasets are quite big and would take a while to `wget`!
+I used `wget` and a `for` loop to download data over a range of years. This required testing the `for` loop first on 2 years of data, before running the loop on a bigger range of 10 years. I did this since the datasets are quite big and would take a while (at least on my computer) to `wget`!
 ```{bash}
 #| label: 1a
 #| cache: true
@@ -43,6 +43,7 @@ do
     gunzip -f "tmp/${year}.csv.gz"
 
     # Report if there are no observations for a year
+    # `-s` checks if the file exists, and is not empty
     if [ ! -s "tmp/${year}.csv" ]; then
         echo "No records found for ${year}."
     else
@@ -59,7 +60,7 @@ done
 ## Question 1b
 > Subset to the station corresponding to Death Valley, to the TMAX (maximum daily temperature) variable, and to March, and put all the data into a single file. In subsetting to Death Valley, get the information programmatically from the `ghcnd-stations.txt` file one level up in the website. Do NOT type in the station ID code when you retrieve the Death Valley data from the yearly files.
 
-First we have to find Death Valley's station ID.
+First we have to find Death Valley's station ID by accessing the `.txt` file using `wget`.
 ```{bash}
 #| label: 1b Station ID
 #| cache: true
@@ -78,7 +79,7 @@ echo "The station ID code for Death Valley is $dvnp_id."
 rm tmp/$stations
 ```
 
-Then for each year, find the value corresponding to DVNP -> TMAX -> March. I use `awk` instead of `grep` since it's more adept at multiple column filtering.
+Then for each year, find the value(s) corresponding to DVNP & TMAX & March. I use `awk` instead of `grep` since it's more adept at multiple column filtering.
 Again, I first tested the `for` loop on a handful of years, before extending to the larger range of years. 
 ```{bash}
 #| label: 1b
@@ -107,9 +108,9 @@ done
 ## Question 1c
 > Create a Python chunk (or R would be fine too) that takes as input your single file from (b) and makes a single plot showing side-by-side boxplots containing the maximum daily temperatures on each calendar day in March. (If you somehow really have trouble mixing Python and bash chunks, it’s ok to insert this figure manually, after running the Python code separately. In this case you could use the `jupyter` engine provided that a bash kernel is available for Jupyter.)
 
-General steps would be to read in my `.txt` file as a DataFrame (or similar Python object). Then I need to group the data in the `.txt` file by day of the calendar month. Lastly, I need to look at the documentation for how to make boxplots using `matplotlib`. 
+If first need to read in my `.txt` file as a DataFrame (or similar Python object). Then I need to group the data in the `.txt` file by day of the calendar month. Lastly, I need to look at the documentation for how to make boxplots using `matplotlib`. 
 
-It's important to note that the raw `TMAX` values are in tenths of degrees Celsius. It took me too long to figure this out, but it is documented in NOAA's [readme](https://www.ncei.noaa.gov/pub/data/ghcn/daily/readme.txt) for this dataset. 
+It's important to note that the raw `TMAX` values are in tenths of degrees Celsius. It took me too long to figure this out, but it is documented in NOAA's [readme](https://www.ncei.noaa.gov/pub/data/ghcn/daily/readme.txt) for this dataset. So I had to divide all the raw values by 10.
 ```{python}
 #| label: 1c
 #| cache: true
@@ -161,7 +162,7 @@ df_tmax.columns = years
 # Re-index rows in df_tmax to correspond to days of months (i.e., start at 1)
 df_tmax.index = df_tmax.index + 1
 
-# Print output to check
+# Print output to check if it's what we want
 # print(df_tmax)
 
 # Use matplotlib to make a box chart
@@ -176,10 +177,12 @@ plt.grid(True)
 plt.show()
 ```
 
-Lastly, I lint the code above to make it adhere to standard (I worked on the python code in a separate `.py` file, then pasted the linted code above):
+Lastly, I linted the code above to make it adhere to standard (I worked on the Python code in a separate file called `q1c_test.py`):
 ```{bash}
-ruff check
-ruff format
+#| cache: True
+
+ruff check q1c_test.py
+ruff format q1c_test.py
 ```
 
 
@@ -193,13 +196,13 @@ ruff format
 > 
 > `if [ "${var}" == "7" ]`
 
-When the `-h` flag is entered, I used ChatGPT to give ideas on how to incorporate it into my code.
+When the `-h` flag is entered, I used ChatGPT to give ideas on how to incorporate it into my code. I don't know if using multiple `echo` statements is the most efficient, but it allowed me to format the output text the way I wanted.
 
 To counts the number of `args` passed to the function in bash, I relied on this [Stack Overflow thread](https://stackoverflow.com/questions/18568706/check-number-of-arguments-passed-to-a-bash-script).
 
-Note that in bash, `return 1` in a function indicates failure.
+Note that in bash, `return 1` in a function indicates exit with failure. (On the other hand, `return 0` indicates to exit the function with success.) I used this any time the number of `args` inputted was wrong, or if no match was foudn for a location.
 
-I wrote the code so that if there are multiple matches for a place name, I programmed it so that only the observations for the first weather station that is matched is retrieved. Otherwise, if I called something like "Fairbanks", it would return a lot of weather station IDs and take too long to run.
+I wrote the code so that if there are multiple matches for a place name, only the the first weather station that is matched is retrieved. Otherwise, if I called something like "Fairbanks", it would return a lot of weather station IDs and the function would take too long to run.
 
 ```{bash}
 #| label: 1d
@@ -215,12 +218,13 @@ function get_weather() {
     # $4: end year of interest (int)
     # $5: month of interest (int)
 
+
     ### OUTPUTS ###
     # Death Valley data to `stdout`
 
 
     ### HELP INFORMATION ###
-    # Check if help option is invoked
+    # Check if help flag is invoked
     if [ "$1" == "-h" ]; then
         echo "Usage: get_weather [station_id] [weather_var] [start_year] [end_year] [month]"
         echo
@@ -241,10 +245,11 @@ function get_weather() {
         echo
         echo "Example:"
         echo "  get_weather \"death valley\" \"TMAX\" 2023 2024 8"
+
+        # Exit function with success
         return 0
     fi
 
-    
     ### ERROR CHECKING ###
     # Check if user provides wrong number of args
     if  [ "$#" -ne 5 ]; then
@@ -257,7 +262,7 @@ function get_weather() {
     wget -qO "$stations" "https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/$stations"
 
     # Check if input string $1 doesn't match a station in `ghcnd-stations.txt`
-    # `-i` flag in grep indicates case-insensitive match`
+    # `-i` flag in grep indicates case-insensitive match
     # `-q` flag to silence grep output
     if ! cut -f1 $stations | grep -iq "$1"; then
         echo "Error: No weather station found matching \"$1\"."
@@ -269,7 +274,6 @@ function get_weather() {
         station_id=$(grep -i "$1" $stations | cut -d' ' -f1 | head -n 1)
         echo "Found weather station(s) matching \"$1\" ("$station_id")."
     fi
-
 
     ### GET DATA ###
     # Make a temporary directory in which to save files
@@ -284,6 +288,7 @@ function get_weather() {
     fi
 
     # From part (a): get data from NOAA GHCN
+    # From part (b): output the data
     for year in $(seq "$3" "$4");
     do
         url="https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/by_year/${year}.csv.gz"
@@ -325,11 +330,11 @@ echo "The following line should give help info:"
 get_weather -h
 echo
 
-echo "The following line should work (no records found):"
+echo "The following line should work (but no records found):"
 get_weather "death valley" "TMAX" 1770 1771 2
 echo
 
-echo "The following line should work (no records found):"
+echo "The following line should work (but no records found):"
 get_weather "north pole" "TMIN" 1994 1995 12
 echo
 
@@ -350,6 +355,8 @@ echo
 
 ## Question 2a
 > Add informative doc strings to your functions.
+
+I copied my code/functions from Problem Set 1. I then used the docstring conventions proposed suggested by [PEP](https://peps.python.org/pep-0257/) to format my docstrings. I also used Chris's solutions from PS1 as a guideline for how much information to include in the docstring. I took his solution one step further by including sections on arguments and returns (even though for these simple functions, they're probably not needed).
 ```{python}
 #| label: 2a
 #| cache: true
@@ -455,17 +462,19 @@ def get_scholar_info(filename):
 ## Question 2b
 > Add exceptions for handling run-time errors. You should try to catch the various incorrect inputs a user could provide and anything else that could go wrong (e.g., what happens if the server refuses the request or if one is not online?). In some cases you will want to raise an error, but in others you may want to catch an error with `try-except` and return `None`.
 
-Errors to try for `get_scholar_citations()`:
+I was unfamiliar with `try-except`, so I relied on this [Stack Overflow](https://stackoverflow.com/questions/62062226/how-to-work-with-try-and-except-in-python) thread as well as the Python documentation/tutorial on [errors and exceptions](https://docs.python.org/3/tutorial/errors.html) to understand how they work. I also used ChatGPT to assist with building the syntax for my two functions.
 
-* Server does not exist or is not online
-* Server rejects the request
+Exceptions to try for `get_scholar_citations()`:
 
-Errors to try for `get_scholar_info()`:
+* Server does not exist or is not online.
+* Server rejects the request (e.g. 429 error).
+* HTML is in a bad or un-parseable format.
 
-* Filename doesn't exist
-* File is not in html format
+Exceptions to try for `get_scholar_info()`:
 
-I was unfamiliar with `try-except`, so I used ChatGPT to assist with the syntax.
+* Filename doesn't exist or can't be opened.
+* HTML can't be parsed for whatever reason (somehwat duplicated from `get_scholar_citations()`)
+
 ```{python}
 #| label: 2b
 #| cache: true
@@ -498,7 +507,7 @@ def get_scholar_citations(scholar_id):
         return None
 
     try:
-        # Check for 429 errors
+        # Check for 429 errors (too many requests)
         subprocess.run(
             ["wget", "-qO", saved_html, url],  
             check=True,  
@@ -512,7 +521,7 @@ def get_scholar_citations(scholar_id):
         with open(saved_html, "r", encoding="ISO-8859-1") as file:
             citations_html = bs(file, "html.parser")
     except FileNotFoundError:
-        print("Error: File not Foudn.")
+        print("Error: File not Found.")
         return None
     except Exception as message:
         print(f"Error with file: {message}")
@@ -590,16 +599,18 @@ def get_scholar_info(filename):
 ## Question 2c
 > Use the `pytest` package to set up a thoughtful set of unit tests of your functions.
 
-I set up two cases where the code should work:
+I used the notes from Lab 2 of this class to develop my unit tests. Generally I want to build one suite of tests where I get the desired response, and another that tests where the functions should run with errors.
 
-* One where `get_scholar_citations` returns a bs object
-* Another where `get_scholar_info` does not return None when
+For the first suite, I set up two cases where the code should work:
 
-And another three tests where they shouldn't:
+* `get_scholar_citations` returns a `BeautifulSoup` object.
+* `get_scholar_info` does not return `None` when it finds a valid HTML file.
 
-* When an in invalid scholar ID is given
-* When a file does not exist or is missing
-* If a bad html is passed as the file to be parsed
+For the second suite of tests, I created another three tests where the functions should **not** run:
+
+* An invalid scholar ID is given.
+* The HTML file does not exist or is missing.
+* A bad HTML is passed as the file to be parsed.
 ```{python}
 #| label: 2c
 #| cache: true
@@ -638,4 +649,22 @@ def test_get_scholar_info_bad_html():
     filename = "scholar2_bad.html"
     result = get_scholar_info(filename)
     assert result is None
+```
+
+I linted the Python code (I worked on it in a separate `.py` file):
+
+```{bash}
+#| cache: true
+
+ruff check q2d_functions.py
+ruff format q2d_functions.py
+```
+
+And finally, I run the `pytest` unit tests:
+
+```{python}
+#| cache: true
+import pytest
+
+pytest.main(["q2d_functions.py"])
 ```
