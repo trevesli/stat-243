@@ -1,0 +1,85 @@
+---
+title: "STAT 243 Problem Set 3"
+author: "Treves Li"
+date: now
+format:
+  pdf:
+    code-block-border-left: false
+output: true
+---
+
+## Collaboration Statement
+I did not collaborate with anyone.
+
+
+## Question 1
+> Let’s investigate the structure of the `statsmodels` package to get some experience with the structure of a large Python package and with how `import` and the `__init__.py` file(s) are used. You’ll need to go into the `statsmodels` source code (see Unit 5). Also note that the following cases may involve functions, classes, and class methods. Be sure to be clear to say which of those you are talking about and if it’s a class, describe any inheritance structure.
+
+
+## Question 1a
+> For this subpart only, consider doing `import statsmodels`. What is in the `statsmodels` namespace that is created? Where (what module file) is the version number for `statsmodels` stored in? What is the absolute path to the package on the machine you are working on?
+
+To access the `statsmodels` namespace, I use `dir()`:
+```{python}
+#| cache: true
+import statsmodels
+dir(statsmodels)
+```
+
+The version number for  `statsmodels` is stored in the `_version.py` file. I first tried looking for it in `statsmodels`'s `__init__.py`, but opening that file revealed that it imported the "version" information from another module/file based on this line: 
+
+`from statsmodels._version import __version__, __version_tuple__`. 
+
+We can verify by running the code chunk below:
+\begingroup
+\fontsize{8pt}{20pt}\selectfont
+\addtolength{\tabcolsep}{-5pt}
+```{python}
+#| cache: true
+print(statsmodels._version)
+print(statsmodels.__version__)
+```
+\endgroup
+
+To find the absolute path to the `statsmodels` package's source code, I utilise the `__file__` attribute:
+```{python}
+#| cache: true
+print(statsmodels.__file__)
+```
+
+
+{{< pagebreak >}}
+
+
+## Question 1b
+> The remaining subparts all relate to using the standard import `statsmodels.api as sm` invocation. First, describe briefly what happens when this is run (what files are accessed). Then, describe what kind of object `MICE` is, how it is imported and where it is found. Do the same for `GLM`.
+
+To see what happens when I run the invocation, I first run a virtual test environment for `statsmodels`:
+```{bash}
+# Create a test environment
+python3 -m venv test_env
+
+# Activate the test environment
+source test_env/bin/activate 
+
+pip install statsmodels
+```
+
+When I run the invocation, I can see what file is being run:
+\begingroup
+\fontsize{8pt}{20pt}\selectfont
+\addtolength{\tabcolsep}{-5pt}
+```{python}
+#| cache: true
+import statsmodels.api as sm
+sm
+```
+\endgroup
+
+By looking closely at `api.py`, I can determine that the code is accessing  each of the submodules to set up the namespace that it needs to operate. 
+
+To find out what kind of object `MICE` is, I run the following code:
+```{python}
+print(type(sm.MICE))
+help(sm.MICE)
+```
