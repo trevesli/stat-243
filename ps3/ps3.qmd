@@ -31,15 +31,11 @@ The version number for  `statsmodels` is stored in the `_version.py` file. I fir
 `from statsmodels._version import __version__, __version_tuple__`. 
 
 We can verify by running the code chunk below:
-\begingroup
-\fontsize{8pt}{20pt}\selectfont
-\addtolength{\tabcolsep}{-5pt}
 ```{python}
 #| cache: true
-print(statsmodels._version)
+print(statsmodels._version.__file__)
 print(statsmodels.__version__)
 ```
-\endgroup
 
 To find the absolute path to the `statsmodels` package's source code, I utilise the `__file__` attribute:
 ```{python}
@@ -52,7 +48,7 @@ print(statsmodels.__file__)
 
 
 ## Question 1b
-> The remaining subparts all relate to using the standard import `statsmodels.api as sm` invocation. First, describe briefly what happens when this is run (what files are accessed). Then, describe what kind of object `MICE` is, how it is imported and where it is found. Do the same for `GLM`.
+> The remaining subparts all relate to using the standard `import statsmodels.api as sm` invocation. First, describe briefly what happens when this is run (what files are accessed). Then, describe what kind of object `MICE` is, how it is imported and where it is found. Do the same for `GLM`.
 
 To see what happens when I run the invocation, I first run a virtual test environment for `statsmodels`:
 ```{bash}
@@ -66,15 +62,11 @@ pip install statsmodels
 ```
 
 When I run the invocation, I can see what file is being run:
-\begingroup
-\fontsize{8pt}{20pt}\selectfont
-\addtolength{\tabcolsep}{-5pt}
 ```{python}
 #| cache: true
 import statsmodels.api as sm
-sm
+sm.__file__
 ```
-\endgroup
 
 By looking closely at `api.py`, I can determine that the code is accessing  each of the submodules to set up the namespace that it needs to operate. 
 
@@ -82,4 +74,184 @@ To find out what kind of object `MICE` is, I run the following code:
 ```{python}
 print(type(sm.MICE))
 help(sm.MICE)
+```
+
+
+{{< pagebreak >}}
+
+
+## Question 2
+> The website [Commission on Presidential Debates](https://debates.org/voter-education/debate-transcripts) has the text from recent debates between the candidates for President of the United States. (As a bit of background for those of you not familiar with the US political system, there are usually three debates between the Republican and Democratic candidates at which they are asked questions so that US voters can determine which candidate they would like to vote for.) Your task is to process the information and produce data on the debates. Note that while I present the problem below as subparts (a)-(d), your solution does not need to be divided into subparts in the same way, but you do need to make clear in your solution where and how you are doing what. For the purposes of this problem, please work on the the debates I’ve selected (see code below) for the years 2000, 2004, 2008, 2012, 2016, and 2020. (I’ve tried to select debates that cover domestic policy in whole or in part to control one source of variation, namely the topic of the debate.) I’ll call each individual response by a candidate to a question a “chunk”. A chunk might just be a few words or might be multiple paragraphs.
+> 
+> The goal of this problem is two-fold: first to give you practice with regular expressions and string processing and the second to have you thinking about writing well-structured, readable code (similar to question 4 of PS1). You can choose to use either a functional programming approach or an object-oriented approach. I strongly recommend that you use the approach that you are **less** familiar with so as to gain more experience. Please think about writing short, modular functions or methods. Explore the use of `map`, list comprehension or other techniques to avoid having a lot of nested for loops. Think carefully about how to structure your objects to store the spoken chunks so that the structure works well with your functions/methods. Note that for this problem, for the sake of time, you do not need extensive docstrings, but it should still be clear what each function does. In parts (a)-(c), add simple sanity checks that you are getting reasonable results.
+>
+> Given that in earlier problem sets, you already worked on downloading and processing HTML, I’m giving you the code (in the file `ps/ps3prob3.py` in the class repository) to download the HTML and do some initial processing, so you can dive right into processing the actual debate text.
+
+First, I download the Python file to download and process the HTML. 
+```{python}
+#| cache: true
+#| output: false
+import requests
+
+# Break up the url so it formats better on Quarto
+url = "https://raw.githubusercontent.com" \
+      + "/berkeley-stat243/fall-2024" \
+      + "/refs/heads/main/ps/ps3prob3.py"
+
+# Get HTML
+response = requests.get(url)
+
+# Execute Python script
+exec(response.text)
+
+# The code chunk is amended so as not to generate output
+# This is to make Quarto formatting neater for this assignment
+```
+
+Each debate transcript is thus saved as an element in the list `debates_body`.
+
+
+{{< pagebreak >}}
+
+
+## Question 2a
+> Convert the text so that for each debate, the spoken text is split up into individual chunks of text spoken by each speaker (including the moderator). If there are two chunks in a row spoken by a candidate, combine them into a single chunk. Make sure that any formatting and non-spoken text (e.g., the tags for ‘Laughter’ and ‘Applause’) is stripped out. Report the number of chunks per speaker.
+
+In the code below, I first find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. But I ignore words that are two letters or fewer, as it seems to flag party affiliation (like "(D)" or "(R)") or state names (like "(MA)" or "(AZ)").
+
+```{python}
+#| cache: true
+def strip_non_spoken(debates_all):
+  """
+  Strips non-spoken text from a list of debate transcripts.
+
+  This function finds all words enclosed in parentheses that are longer 
+  than two characters and removes them from the provided debate texts. 
+  It uses regex to identify non-spoken text. 
+  After identifying these non-spoken texts, it removes them from 
+  the transcripts and returns the cleaned-up version of the debate texts.
+
+  Parameters:
+  ----------
+  debates_all : list of str
+      A list of strings, where each string is a transcript of a debate.
+
+  Returns:
+  -------
+  list of str
+      A list of strings where the non-spoken text has been removed.
+
+  Example:
+  -------
+  >>> debates_body = [
+          "They will applaud as we welcome the two candidates, 
+          Governor Bush and Vice President Gore.(Applause)",
+          "Well, just listen to what you heard. (laughter)"
+      ]
+  >>> strip_non_spoken(debates)
+  ["They will applaud as we welcome the two candidates, 
+  Governor Bush and Vice President Gore.",
+  "Well, just listen to what you heard."]
+  """
+
+  import re
+
+  # Find all non-spoken text similar to "Laughter" or "Applause"
+  # Do this by regex-ing all single words that appear within parentheses 
+  # and square brackets
+  # Exclude words with two or fewer characters
+  non_spoken_pattern = r"[\(\[]\w{3,}[\)\]]"
+  non_spoken_matches = [re.findall(non_spoken_pattern, debate) 
+                        for debate in debates_all]
+
+  # Flatten the list of lists using list comprehension
+  non_spoken_matches = [match for debate in non_spoken_matches 
+                        for match in debate]
+
+  # Create new regex pattern based on non_spoken_matches
+  non_spoken_matches_pattern = '|'.join(map(re.escape, non_spoken_matches))
+
+  # Strip out all non-spoken text using regex
+  # Strip out leading and trailing whitespaces
+  debates_body_stripped = [re.sub(non_spoken_matches_pattern, '', debate).strip() 
+                        for debate in debates_all]
+
+  return debates_body_stripped
+
+# Apply function to our list of transcripts
+debates_body_stripped = strip_non_spoken(debates_body)
+
+# Sanity check: compare occurrences of "applause" and "laughter"
+applause_counts_orig = [debate.lower().count("applause") 
+                        for debate in debates_body]
+applause_counts_stripped = [debate.lower().count("applause") 
+                        for debate in debates_body_stripped]
+laughter_counts_orig = [debate.lower().count("laughter") 
+                        for debate in debates_body]
+laughter_counts_stripped = [debate.lower().count("laughter") 
+                        for debate in debates_body_stripped]
+
+print("Occurrences of \"applause\" in original transcript:", 
+      applause_counts_orig)
+print("Occurrences of \"applause\" in stripped transcript:", 
+      applause_counts_stripped)
+print("Occurrences of \"laughter\" in original transcript:", 
+      laughter_counts_orig)
+print("Occurrences of \"laughter\" in stripped transcript:", 
+      laughter_counts_stripped)
+```
+
+Note that the single occurrence of "applause" from the stripped transcript was from the moderator literally saying the word. 
+
+I then subdivide each transcript based on the idea that each chunk will be marked by a speaker (candidate or moderator; stylised in all caps) followed by a colon. The list of `candidates` is in the provided `ps3prob3.py` file, as is the name of each of the moderators. 
+
+```{python}
+#| cache: true
+
+# Get the names of debaters for years of interest 
+candidates_names = [names for debater in candidates for names in debater.values()]
+
+# Retrieve only unique names, for both candidates and moderators
+candidates_names = list(set(candidates_names))
+moderator_names = list(set(moderators))
+
+# Combine to make a list of speakers
+speakers = candidates_names + moderator_names
+
+print(candidates_names)
+print(moderator_names)
+```
+
+To retrieve the chunks, I break up each transcript by isolating a speaker and their response, using regex.
+
+```{python}
+def get_chunks(string):
+
+  # Use regex to find all chunks
+  pattern = r"([A-Z]+): (?<=[A-Z]: )(.*?)(?=[A-Z]*:|$)"
+  matches = re.findall(pattern, string)
+  matches_list = [list(match) for match in matches]
+
+  # Consolidate chunks if spoken in a row by the same speaker
+  for i in range(len(matches_list) - 1):
+    if matches_list[i][0] == matches_list[i+1][0]:
+      matches_list[i][1] += matches_list[i+1][1]
+      matches_list[i+1][0] = None
+      matches_list[i+1][1] = None
+  
+  # Drop rows where the values are "None"
+  filtered_chunks = [chunk for chunk in matches_list if chunk[0] is not None and chunk[1] is not None] 
+  
+  return filtered_chunks
+
+get_chunks(debates_body_stripped[0])
+```
+
+I define a class called Chunks to store/structure the spoken chunks:
+
+```{python}
+class Chunk:
+  def __init__(self, speaker, text):
+    self.speaker = speaker
+    self.text = text
 ```
