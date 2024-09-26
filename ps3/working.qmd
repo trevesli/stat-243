@@ -1,0 +1,70 @@
+ ```{python}
+# Create a list that allocates a variable to each debate
+debates_list = []
+
+# Get chunks for each debate
+for i, debate in zip(debates_body_stripped, debates_list):
+  ... #TODO  
+
+get_chunks(debates_body_stripped[0])
+
+# Do some sanity checks
+```
+
+
+
+I define a class called Chunks to store/structure the spoken chunks:
+
+```{python}
+class Chunk:
+  def __init__(self, speaker, text):
+    self.speaker = speaker
+    self.text = text
+```
+
+
+
+
+
+
+class Chunk:
+    def __init__(self, speaker, text):
+        self.speaker = speaker
+        self.text = text
+
+    def __str__(self):
+        return f"{self.speaker}: {self.text}"
+
+class Debate:
+    def __init__(self, year, transcript):
+        self.year = year
+        self.transcript = transcript
+        self.chunks = []
+
+    def process_transcript(self):
+        # Process the transcript to create chunks
+        # Strip out non-spoken text and combine chunks
+        pass
+
+    def get_chunk_counts(self):
+        # Return a dictionary with speaker names and their chunk counts
+        chunk_counts = {}
+        for chunk in self.chunks:
+            if chunk.speaker in chunk_counts:
+                chunk_counts[chunk.speaker] += 1
+            else:
+                chunk_counts[chunk.speaker] = 1
+        return chunk_counts
+
+# Example usage:
+debates = [
+    Debate(2000, "transcript_text_2000"),
+    Debate(2004, "transcript_text_2004"),
+    # Add more debate instances
+]
+
+for debate in debates:
+    debate.process_transcript()
+    counts = debate.get_chunk_counts()
+    print(f"Chunk counts for debate {debate.year}: {counts}")
+

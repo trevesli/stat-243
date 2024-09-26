@@ -201,8 +201,8 @@ Specifically, the code below from `__init__.py` shows that it is imported direct
 #| cache: true
 #| eval: false
 from .empirical_distribution import (
-    ECDF, ECDFDiscrete, monotone_fn_inverter, StepFunction
-    )
+  ECDF, ECDFDiscrete, monotone_fn_inverter, StepFunction
+  )
 ```
 
 We confirm that the function is in the `distributions` namespace as a sanity check:
@@ -226,9 +226,9 @@ When I open the `empirical_distribution.py` file above, I indeed find that the f
 #| cache: true
 filename = sm.distributions.empirical_distribution.__file__
 
-with open(filename, 'r') as f:
+with open(filename, "r") as f:
   for line_num, line in enumerate(f, start=1):
-    if 'monotone_fn_inverter' in line:
+    if "monotone_fn_inverter" in line:
       print(f"Line {line_num}: {line.strip()}")
 ```
 
@@ -248,24 +248,46 @@ I have more experience with using functional programming, so I attempted this qu
 
 First, I execute the Python file to download and process the HTML. 
 ```{python}
+#| label: 2-extract-py
 #| cache: true
 #| output: false
 ps3prob3 = r"~/fall-2024/ps/ps3prob3.py"
 
 # Expand to full path
 import os.path
+
 ps3prob3 = os.path.expanduser(ps3prob3)
 
 with open(ps3prob3) as f:
   script = f.read()
 
-exec(script) 
+exec(script)
 
 # The code chunk is amended so as not to generate output
 # This is to make Quarto formatting neater for this assignment
 ```
 
 Each debate transcript is thus saved as an element in the list `debates_body`.
+
+I also use the opportunity to extract the list of `candidates` from the `ps3prob3.py` file, as well as the list of `moderators`. 
+
+```{python}
+#| label: get-names
+#| cache: true
+
+# Get the names of debaters for years of interest 
+candidates = [person for entry in candidates for person in entry.values()]
+
+# Retrieve only unique names, for both candidates and moderators
+candidates = list(set(candidates))
+moderators = list(set(moderators))
+
+# Combine to make a list of speakers
+speakers = candidates + moderators
+
+print(candidates)
+print(moderators)
+```
 
 
 {{< pagebreak >}}
@@ -276,37 +298,38 @@ Each debate transcript is thus saved as an element in the list `debates_body`.
 
 I first create a class called `Debate`, and define its methods. 
 
-In `find_non_spoken`, I find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. But I ignore words that are two letters or fewer, as it seems to flag party affiliation (like "(D)" or "(R)") or state names (like "(MA)" or "(AZ)").
+In `find_non_spoken`, I find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. In `strip_non_spoken`, I trip the transcript of the non-spoken texts. I wrote some additional functions for sanity checks.
+
 ```{python}
+import re
+
 class Debate:
 
   def __init__(self, debates_body):
-    self.debates_body = debates_body
-
+      self.debates_body = debates_body
 
   def find_non_spoken(self):
     """
-    Searches and extracts non-spoken text (e.g., "Laughter" or "Applause") in 
+    Searches and extracts non-spoken text (e.g., "Laughter" or "Applause") in
     parentheses or square brackets from debates.
 
     Returns:
         list: A list of non-spoken words found in the debates.
     """
-    import re
 
-    # Regex to find all single words that appear within parentheses 
+    # Regex to find all single words that appear within parentheses
     # and square brackets
-    # Exclude words with two or fewer characters
-    non_spoken_pattern = r"[\(\[]\w{3,}[\)\]]"
-    non_spoken_matches = [re.findall(non_spoken_pattern, debate) 
-                          for debate in self.debates_body]
+    non_spoken_pattern = r"[\(\[]\w+[\)\]]"
+    non_spoken_matches = [
+        re.findall(non_spoken_pattern, debate) for debate in self.debates_body
+    ]
 
     # Flatten the list of lists using list comprehension
-    non_spoken_matches = [match for debate in non_spoken_matches 
-                          for match in debate]
+    non_spoken_matches = [
+        match for debate in non_spoken_matches for match in debate
+    ]
 
     return non_spoken_matches
-
 
   def strip_non_spoken(self):
     """
@@ -317,12 +340,14 @@ class Debate:
     """
 
     # Create new regex pattern based on non_spoken_matches
-    non_spoken_list_pattern = '|'.join(map(re.escape, self.find_non_spoken()))
+    non_spoken_list_pattern = "|".join(map(re.escape, self.find_non_spoken()))
 
     # Strip out all non-spoken text using regex
     # Strip out leading and trailing whitespaces
-    debates_stripped = [re.sub(non_spoken_list_pattern, '', debate).strip() 
-                          for debate in self.debates_body]
+    debates_stripped = [
+        re.sub(non_spoken_list_pattern, "", debate).strip()
+        for debate in self.debates_body
+    ]
 
     return debates_stripped
 
@@ -333,13 +358,12 @@ class Debate:
     Returns:
         list: Counts of occurrences of the word in each debate.
     """
-    counts = [debate.lower().count(non_spoken_word) 
-                      for debate in self.debates_body]
+    counts = [debate.lower().count(non_spoken_word) for debate in self.debates_body]
     return counts
 
   def compare_pre_post_strip(self, non_spoken_word):
     """
-    Compare the counts of a specified non-spoken word before and after 
+    Compare the counts of a specified non-spoken word before and after
     stripping "non-spoken" text.
 
     Returns:
@@ -349,23 +373,148 @@ class Debate:
     stripped_debates = Debate(self.strip_non_spoken())
     counts_post_strip = stripped_debates.count_non_spoken(non_spoken_word)
     return print(f"Counts of '{non_spoken_word}': \n\
-      Pre-strip:\t {counts_pre_strip} \n\
-      Post-strip:\t {counts_post_strip}\n")
-
-debates = Debate(debates_body)
-
-
+          Pre-strip:\t {counts_pre_strip} \n\
+          Post-strip:\t {counts_post_strip}\n")
 ```
 
-In the code below, I run some sanity checks:
+I test the class and its methods below, while also running some sanity checks:
 ```{python}
-#| label: 2a-sanity
+#| label: 2a-debates-sanity
 #| cache: true
+
+# Instantiate `Debate` class
+debates = Debate(debates_body)
+
+# Strip debates of non-spoken words
+debates_stripped = debates.strip_non_spoken()
 
 # Check that non-spoken words are properly stripped
 debates.compare_pre_post_strip("applause")
 debates.compare_pre_post_strip("laughter")
+debates.compare_pre_post_strip("crosstalk")
 ```
+
+To retrieve the chunks, I create a new class called `Chunk` that takes a string/transcript. In `get_debate_year`, I extract the year corresponding to each debate. I wrote `strip_preamble` to get rid of the preamble in each transcript, which would otherwise interfere when counting the chunks of each speaker. 
+
+In `get_chunks`, I subdivide each transcript into chunks based on the idea that each chunk will be marked by a speaker (candidate or moderator; stylised in all caps) followed by a colon, using regex. I needed to adjust the regex iteratively, since each transcript had its own transcription idiosyncracies.
+
+In `count_chunks`, I count the number of occurrences that each speaker has their own chunk in a debate, ensuring that only speakers that appear in the `speakers` list are included in the resultant dictionary.
+
+```{python}
+#| label: 2a-chunk
+#| cache: true
+class Chunk:
+  def __init__(self, transcript):
+    self.transcript = transcript
+
+  def get_debate_year(self):
+    """
+    Gets the debate year.
+
+    Returns:
+        int: The year of the debate
+    """
+    year_pattern = r"^.+?(\d{4})"
+    year_matches = re.findall(year_pattern, self.transcript)
+    matches_list = [int(match) for match in year_matches]
+
+    return matches_list[0]
+
+  def strip_preamble(self):
+    """
+    Strips the transcript preamble up to the first time a name in `moderator` 
+    is encountered.
+
+    Returns:
+        str: Transcript with preamble removed.
+    """
+    preamble_pattern = r"^(.*?)(?:" \
+                      + "|".join(re.escape(moderator) for moderator in moderators) \
+                      + r"):\s*(.*)"
+    preamble_match = re.search(preamble_pattern, self.transcript)
+    self.transcript = self.transcript[preamble_match.end(1):].strip()
+    return self.transcript
+
+  def get_chunks(self):
+    """
+    Isolates and consolidates chunks of dialogue from the transcript 
+    using regex.
+
+    Returns:
+        list: A list of lists, where inner list contains the speaker's 
+              identifier and their consolidated speech chunk.
+    """
+    # Use regex to find all chunks
+    chunk_pattern = r"([A-Z]+): (?<=[A-Z]: )(.*?)(?=[A-Z]*:|$)"
+    chunk_matches = re.findall(chunk_pattern, self.transcript)
+    matches_list = [list(match) for match in chunk_matches]
+
+    # Consolidate chunks if spoken in a row by the same speaker
+    for i in range(len(matches_list) - 1):
+      if matches_list[i][0] == matches_list[i+1][0]:
+        matches_list[i][1] += matches_list[i+1][1]
+        matches_list[i+1][0] = None
+        matches_list[i+1][1] = None
+    
+    # Drop rows where the values are "None"
+    filtered_chunks = [chunk for chunk in matches_list 
+                      if chunk[0] is not None 
+                      and chunk[1] is not None] 
+    
+    return filtered_chunks
+
+  def count_chunks(self, chunks):
+    """
+    Counts the number of chunks per speaker for each debate.
+    Only speakers in the `speakers` list are considered.
+
+    Returns:
+        dict: A dict where the keys are speaker names, and the values 
+              are the counts of chunks per speaker.
+    """
+    speaker_count = {}
+
+    for chunk in chunks:
+      speaker = chunk[0]  # The first element is the speaker
+
+      # Ensure speaker is only counted if they are in `speakers` list
+      if speaker in speaker_count and speaker in speakers:
+        # Increment counter for a particular speaker
+        speaker_count[speaker] += 1  
+      elif speaker in speakers:
+        # Initialise value for first time speaker is encoutered
+        speaker_count[speaker] = 1
+
+    return speaker_count
+
+  def check_chunk_consol(self):
+    ...
+    #See if chunk and chunk+1 speakers are the same
+    #TODO
+```
+
+Again, I test the class and run some sanity checks:
+```{python}
+#| label: 2a-chunk-sanity
+#| cache: true
+
+#deb1994 = Chunk(transcript[6])
+#print(debates_stripped[5])
+#print(deb1994.strip_preamble())
+
+# Assign each debate to a separate list of lists
+for transcript in debates_stripped:
+  debate = Chunk(transcript)
+  year = debate.get_debate_year()
+  
+  debate.strip_preamble()
+  
+  debate_chunked = debate.get_chunks()
+  print(debate_chunked)
+  chunk_counts = debate.count_chunks(debate_chunked)
+  print(f"Chunk counts for {year}: {chunk_counts}")
+```
+
 
 
 Note that the single occurrence of "applause" from the post-stripped transcript was from the moderator literally saying the word "applause". 
