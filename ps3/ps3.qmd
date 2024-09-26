@@ -18,13 +18,17 @@ I did not collaborate with anyone.
 
 ## Question 1a
 > For this subpart only, consider doing `import statsmodels`. What is in the `statsmodels` namespace that is created? Where (what module file) is the version number for `statsmodels` stored in? What is the absolute path to the package on the machine you are working on?
+---
 
 To access the `statsmodels` namespace, I use `dir()`:
 ```{python}
-#| cache: true
+#| label: 1a-dir
+#| cache: false
 import statsmodels
 dir(statsmodels)
 ```
+
+It's interesting that the submodules normally associated with `statsmodels` (e.g., `statsmodels.api` or `statsmodels.tsa`) are not imported at the same time. Based on reading the `__init__.py`, it seems like the import is only loading the minimal high-level `statsmodels` module with some metadata-like dunders, perhaps in an effort to be space efficient. I can imagine that the entire package might use a lot of memory.
 
 The version number for  `statsmodels` is stored in the `_version.py` file. I first tried looking for it in `statsmodels`'s `__init__.py`, but opening that file revealed that it imported the "version" information from another module/file based on this line: 
 
@@ -32,6 +36,7 @@ The version number for  `statsmodels` is stored in the `_version.py` file. I fir
 
 We can verify by running the code chunk below:
 ```{python}
+#| label: 1a-version
 #| cache: true
 print(statsmodels._version.__file__)
 print(statsmodels.__version__)
@@ -39,6 +44,7 @@ print(statsmodels.__version__)
 
 To find the absolute path to the `statsmodels` package's source code, I utilise the `__file__` attribute:
 ```{python}
+#| label: 1a-path
 #| cache: true
 print(statsmodels.__file__)
 ```
@@ -49,31 +55,181 @@ print(statsmodels.__file__)
 
 ## Question 1b
 > The remaining subparts all relate to using the standard `import statsmodels.api as sm` invocation. First, describe briefly what happens when this is run (what files are accessed). Then, describe what kind of object `MICE` is, how it is imported and where it is found. Do the same for `GLM`.
-
-To see what happens when I run the invocation, I first run a virtual test environment for `statsmodels`:
-```{bash}
-# Create a test environment
-python3 -m venv test_env
-
-# Activate the test environment
-source test_env/bin/activate 
-
-pip install statsmodels
-```
+---
 
 When I run the invocation, I can see what file is being run:
 ```{python}
-#| cache: true
+#| label: 1b-file
+#| cache: false
 import statsmodels.api as sm
-sm.__file__
+print(sm.__file__)
 ```
 
-By looking closely at `api.py`, I can determine that the code is accessing  each of the submodules to set up the namespace that it needs to operate. 
+By looking closely at `api.py`, I can determine that the code is accessing each of the submodules to set up the namespace that it needs to operate. Specifically, it is importing the necessary functions, classes, submodules, and variables. All of this information on what is imported is made available to the user if they were to run `dir(sm)`.
 
-To find out what kind of object `MICE` is, I run the following code:
+### MICE
+To find out what kind of object `MICE` is, how it is imported, and where it's found I run the following code:
 ```{python}
+#| label: 1b-MICE-type
+#| cache: true
 print(type(sm.MICE))
-help(sm.MICE)
+```
+
+The result shows that `MICE` is a class object.
+
+By reading the `api.py` file, I can determine that it is directly imported using the following statement:
+```{python}
+#| label: 1b-MICE-import
+#| cache: true
+#| eval: false
+from .imputation.mice import MICE
+```
+
+To find where the `MICE` module is, I use the information from the `import` statement while also performing `grep` on the `statsmodels` directory. I also run this code:
+```{python}
+#| label: 1b-MICE-module
+#| cache: true
+print(sm.MICE.__module__)
+```
+From all these information, I can find that `MICE`'s inheritance structure and location in:
+
+`/home/treves/.local/lib/python3.10/site-packages/statsmodels/imputation/mice.py`
+
+### GLM
+I can do the same for the `GLM` module:
+
+```{python}
+#| label: 1b-GLM-type
+#| cache: true
+print(type(sm.GLM))
+```
+
+Again, `GLM` is a class object, which is directly imported through:
+
+```{python}
+#| label: 1b-GLM-import-1
+#| cache: true
+#| eval: false
+from .genmod.api import GLM
+```
+
+If I open `/genmod/api.py`, I find that it is actually imported through the `generalized_linear_model` submodule:
+
+```{python}
+#| label: 1b-GLM-import-2
+#| cache: true
+#| eval: false
+from .generalized_linear_model import GLM
+```
+
+which allows me to find its inheritance structure and true location here:
+
+`~/.local/lib/python3.10/site-packages/statsmodels/genmod/generalized_linear_model.py`
+
+I can verify the location by running this code chunk:
+```{python}
+#| label: 1b-GLM-module
+#| cache: true
+print(sm.GLM.__module__)
+```
+
+
+{{< pagebreak >}}
+
+
+## Question 1c
+> Consider `sm.gam`. What is in the namespace? Describe how the importing works and in what modules the objects in the namespace are defined.
+---
+
+To determine the namespace, I can use `dir()` on `sm.gam`:
+```{python}
+#| label: 1c-namespace
+#| cache: true
+dir(sm.gam)
+```
+
+To determine how it's imported, I can trace what file is actually being run.
+```{python}
+#| label: 1c-file
+#| cache: true
+print(sm.gam.__file__)
+```
+
+When I open `/gam/api.py`, I find that the importing works by directly accessing the objects in their respective submodules, in such a way that the objects (which are likely classes) now become directly available in the `gam` submodule's local namespace. The import statements are provided below as an example.
+```{python}
+#| label: 1c-import
+#| eval: false
+#| cache: true
+from .generalized_additive_model import GLMGam
+from .gam_cross_validation.gam_cross_validation import MultivariateGAMCVPath
+from .smooth_basis import BSplines, CyclicCubicSplines
+```
+
+The submodules in which the objects are defined can be determined through the following code:
+```{python}
+#| label: 1c-submodules
+#| cache: true
+
+for i in sm.gam.__all__:
+  object = getattr(sm.gam, i)
+  print(f"'{i}' is in {object.__module__}")
+```
+
+
+{{< pagebreak >}}
+
+
+## Question 1d
+> Consider `sm.distributions.monotone_fn_inverter`. What is it, how it is imported and what file it is defined in?
+---
+
+To determine what type of object it is, I run:
+```{python}
+#| label: 1d-object
+#| cache: true
+print(type(sm.distributions.monotone_fn_inverter))
+```
+The output shows that it's a **function** inside the `sm.distributions` submodule. Since the object is a function, and not something like a class, then there is no explicit inheritance structure.
+
+To determine how it is imported, I can `grep` the function name in the `statsmodels` directory, and find that it is called in the following file:
+
+`~/.local/lib/python3.10/site-packages/statsmodels/distributions/__init__.py:`
+
+Specifically, the code below from `__init__.py` shows that it is imported directly from the `empirical_distribution` submodule (which is itself from the `distributions` module) and into the `distributions` namespace.
+```{python}
+#| label: 1d-init
+#| cache: true
+#| eval: false
+from .empirical_distribution import (
+    ECDF, ECDFDiscrete, monotone_fn_inverter, StepFunction
+    )
+```
+
+We confirm that the function is in the `distributions` namespace as a sanity check:
+```{python}
+#| label: 1d-dir
+#| cache: true
+import statsmodels.distributions 
+'monotone_fn_inverter' in dir(sm.distributions)
+```
+
+Based on the information above, I can determine that the function is likely defined in some file called `empirical_distribution.py`. I can confirm this by running:
+```{python}
+#| label: 1d-file
+#| cache: true
+print(sm.distributions.empirical_distribution.__file__[-51:])
+```
+
+When I open the `empirical_distribution.py` file above, I indeed find that the function is defined there, specifically in Line 218:
+```{python}
+#| label: 1d-definition
+#| cache: true
+filename = sm.distributions.empirical_distribution.__file__
+
+with open(filename, 'r') as f:
+  for line_num, line in enumerate(f, start=1):
+    if 'monotone_fn_inverter' in line:
+      print(f"Line {line_num}: {line.strip()}")
 ```
 
 
@@ -86,23 +242,24 @@ help(sm.MICE)
 > The goal of this problem is two-fold: first to give you practice with regular expressions and string processing and the second to have you thinking about writing well-structured, readable code (similar to question 4 of PS1). You can choose to use either a functional programming approach or an object-oriented approach. I strongly recommend that you use the approach that you are **less** familiar with so as to gain more experience. Please think about writing short, modular functions or methods. Explore the use of `map`, list comprehension or other techniques to avoid having a lot of nested for loops. Think carefully about how to structure your objects to store the spoken chunks so that the structure works well with your functions/methods. Note that for this problem, for the sake of time, you do not need extensive docstrings, but it should still be clear what each function does. In parts (a)-(c), add simple sanity checks that you are getting reasonable results.
 >
 > Given that in earlier problem sets, you already worked on downloading and processing HTML, I’m giving you the code (in the file `ps/ps3prob3.py` in the class repository) to download the HTML and do some initial processing, so you can dive right into processing the actual debate text.
+---
 
-First, I download the Python file to download and process the HTML. 
+I have more experience with using functional programming, so I attempted this question using object-oriented programming.
+
+First, I execute the Python file to download and process the HTML. 
 ```{python}
 #| cache: true
 #| output: false
-import requests
+ps3prob3 = r"~/fall-2024/ps/ps3prob3.py"
 
-# Break up the url so it formats better on Quarto
-url = "https://raw.githubusercontent.com" \
-      + "/berkeley-stat243/fall-2024" \
-      + "/refs/heads/main/ps/ps3prob3.py"
+# Expand to full path
+import os.path
+ps3prob3 = os.path.expanduser(ps3prob3)
 
-# Get HTML
-response = requests.get(url)
+with open(ps3prob3) as f:
+  script = f.read()
 
-# Execute Python script
-exec(response.text)
+exec(script) 
 
 # The code chunk is amended so as not to generate output
 # This is to make Quarto formatting neater for this assignment
@@ -117,141 +274,99 @@ Each debate transcript is thus saved as an element in the list `debates_body`.
 ## Question 2a
 > Convert the text so that for each debate, the spoken text is split up into individual chunks of text spoken by each speaker (including the moderator). If there are two chunks in a row spoken by a candidate, combine them into a single chunk. Make sure that any formatting and non-spoken text (e.g., the tags for ‘Laughter’ and ‘Applause’) is stripped out. Report the number of chunks per speaker.
 
-In the code below, I first find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. But I ignore words that are two letters or fewer, as it seems to flag party affiliation (like "(D)" or "(R)") or state names (like "(MA)" or "(AZ)").
+I first create a class called `Debate`, and define its methods. 
 
+In `find_non_spoken`, I find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. But I ignore words that are two letters or fewer, as it seems to flag party affiliation (like "(D)" or "(R)") or state names (like "(MA)" or "(AZ)").
 ```{python}
-#| cache: true
-def strip_non_spoken(debates_all):
-  """
-  Strips non-spoken text from a list of debate transcripts.
+class Debate:
 
-  This function finds all words enclosed in parentheses that are longer 
-  than two characters and removes them from the provided debate texts. 
-  It uses regex to identify non-spoken text. 
-  After identifying these non-spoken texts, it removes them from 
-  the transcripts and returns the cleaned-up version of the debate texts.
+  def __init__(self, debates_body):
+    self.debates_body = debates_body
 
-  Parameters:
-  ----------
-  debates_all : list of str
-      A list of strings, where each string is a transcript of a debate.
 
-  Returns:
-  -------
-  list of str
-      A list of strings where the non-spoken text has been removed.
+  def find_non_spoken(self):
+    """
+    Searches and extracts non-spoken text (e.g., "Laughter" or "Applause") in 
+    parentheses or square brackets from debates.
 
-  Example:
-  -------
-  >>> debates_body = [
-          "They will applaud as we welcome the two candidates, 
-          Governor Bush and Vice President Gore.(Applause)",
-          "Well, just listen to what you heard. (laughter)"
-      ]
-  >>> strip_non_spoken(debates)
-  ["They will applaud as we welcome the two candidates, 
-  Governor Bush and Vice President Gore.",
-  "Well, just listen to what you heard."]
-  """
+    Returns:
+        list: A list of non-spoken words found in the debates.
+    """
+    import re
 
-  import re
+    # Regex to find all single words that appear within parentheses 
+    # and square brackets
+    # Exclude words with two or fewer characters
+    non_spoken_pattern = r"[\(\[]\w{3,}[\)\]]"
+    non_spoken_matches = [re.findall(non_spoken_pattern, debate) 
+                          for debate in self.debates_body]
 
-  # Find all non-spoken text similar to "Laughter" or "Applause"
-  # Do this by regex-ing all single words that appear within parentheses 
-  # and square brackets
-  # Exclude words with two or fewer characters
-  non_spoken_pattern = r"[\(\[]\w{3,}[\)\]]"
-  non_spoken_matches = [re.findall(non_spoken_pattern, debate) 
-                        for debate in debates_all]
+    # Flatten the list of lists using list comprehension
+    non_spoken_matches = [match for debate in non_spoken_matches 
+                          for match in debate]
 
-  # Flatten the list of lists using list comprehension
-  non_spoken_matches = [match for debate in non_spoken_matches 
-                        for match in debate]
+    return non_spoken_matches
 
-  # Create new regex pattern based on non_spoken_matches
-  non_spoken_matches_pattern = '|'.join(map(re.escape, non_spoken_matches))
 
-  # Strip out all non-spoken text using regex
-  # Strip out leading and trailing whitespaces
-  debates_body_stripped = [re.sub(non_spoken_matches_pattern, '', debate).strip() 
-                        for debate in debates_all]
+  def strip_non_spoken(self):
+    """
+    Strips non-spoken text from debates using regex.
 
-  return debates_body_stripped
+    Returns:
+        list: A list of debates with non-spoken text removed.
+    """
 
-# Apply function to our list of transcripts
-debates_body_stripped = strip_non_spoken(debates_body)
+    # Create new regex pattern based on non_spoken_matches
+    non_spoken_list_pattern = '|'.join(map(re.escape, self.find_non_spoken()))
 
-# Sanity check: compare occurrences of "applause" and "laughter"
-applause_counts_orig = [debate.lower().count("applause") 
-                        for debate in debates_body]
-applause_counts_stripped = [debate.lower().count("applause") 
-                        for debate in debates_body_stripped]
-laughter_counts_orig = [debate.lower().count("laughter") 
-                        for debate in debates_body]
-laughter_counts_stripped = [debate.lower().count("laughter") 
-                        for debate in debates_body_stripped]
+    # Strip out all non-spoken text using regex
+    # Strip out leading and trailing whitespaces
+    debates_stripped = [re.sub(non_spoken_list_pattern, '', debate).strip() 
+                          for debate in self.debates_body]
 
-print("Occurrences of \"applause\" in original transcript:", 
-      applause_counts_orig)
-print("Occurrences of \"applause\" in stripped transcript:", 
-      applause_counts_stripped)
-print("Occurrences of \"laughter\" in original transcript:", 
-      laughter_counts_orig)
-print("Occurrences of \"laughter\" in stripped transcript:", 
-      laughter_counts_stripped)
+    return debates_stripped
+
+  def count_non_spoken(self, non_spoken_word):
+    """
+    Count occurrences of a specified "non-spoken word" in a debate.
+
+    Returns:
+        list: Counts of occurrences of the word in each debate.
+    """
+    counts = [debate.lower().count(non_spoken_word) 
+                      for debate in self.debates_body]
+    return counts
+
+  def compare_pre_post_strip(self, non_spoken_word):
+    """
+    Compare the counts of a specified non-spoken word before and after 
+    stripping "non-spoken" text.
+
+    Returns:
+        None: Prints counts before and after stripping.
+    """
+    counts_pre_strip = self.count_non_spoken(non_spoken_word)
+    stripped_debates = Debate(self.strip_non_spoken())
+    counts_post_strip = stripped_debates.count_non_spoken(non_spoken_word)
+    return print(f"Counts of '{non_spoken_word}': \n\
+      Pre-strip:\t {counts_pre_strip} \n\
+      Post-strip:\t {counts_post_strip}\n")
+
+debates = Debate(debates_body)
+
+
 ```
 
-Note that the single occurrence of "applause" from the stripped transcript was from the moderator literally saying the word. 
-
-I then subdivide each transcript based on the idea that each chunk will be marked by a speaker (candidate or moderator; stylised in all caps) followed by a colon. The list of `candidates` is in the provided `ps3prob3.py` file, as is the name of each of the moderators. 
-
+In the code below, I run some sanity checks:
 ```{python}
+#| label: 2a-sanity
 #| cache: true
 
-# Get the names of debaters for years of interest 
-candidates_names = [names for debater in candidates for names in debater.values()]
-
-# Retrieve only unique names, for both candidates and moderators
-candidates_names = list(set(candidates_names))
-moderator_names = list(set(moderators))
-
-# Combine to make a list of speakers
-speakers = candidates_names + moderator_names
-
-print(candidates_names)
-print(moderator_names)
+# Check that non-spoken words are properly stripped
+debates.compare_pre_post_strip("applause")
+debates.compare_pre_post_strip("laughter")
 ```
 
-To retrieve the chunks, I break up each transcript by isolating a speaker and their response, using regex.
 
-```{python}
-def get_chunks(string):
+Note that the single occurrence of "applause" from the post-stripped transcript was from the moderator literally saying the word "applause". 
 
-  # Use regex to find all chunks
-  pattern = r"([A-Z]+): (?<=[A-Z]: )(.*?)(?=[A-Z]*:|$)"
-  matches = re.findall(pattern, string)
-  matches_list = [list(match) for match in matches]
-
-  # Consolidate chunks if spoken in a row by the same speaker
-  for i in range(len(matches_list) - 1):
-    if matches_list[i][0] == matches_list[i+1][0]:
-      matches_list[i][1] += matches_list[i+1][1]
-      matches_list[i+1][0] = None
-      matches_list[i+1][1] = None
-  
-  # Drop rows where the values are "None"
-  filtered_chunks = [chunk for chunk in matches_list if chunk[0] is not None and chunk[1] is not None] 
-  
-  return filtered_chunks
-
-get_chunks(debates_body_stripped[0])
-```
-
-I define a class called Chunks to store/structure the spoken chunks:
-
-```{python}
-class Chunk:
-  def __init__(self, speaker, text):
-    self.speaker = speaker
-    self.text = text
-```
