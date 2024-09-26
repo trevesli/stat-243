@@ -498,8 +498,14 @@ Again, I test the class and run some sanity checks:
 #| label: 2a-chunk-sanity
 #| cache: true
 
-#deb1994 = Chunk(transcript[6])
-#print(debates_stripped[5])
+deb2020 = Chunk(transcript[6])
+print(debates_stripped[5])
+
+with open('debate2020_pre.txt', 'w', newline = '') as txtfile:
+    my_writer = txtfile.write(debates_body[5])
+with open('debate2020.txt', 'w', newline = '') as txtfile:
+    my_writer = txtfile.write(debates_stripped[5])
+
 #print(deb1994.strip_preamble())
 
 # Assign each debate to a separate list of lists
