@@ -285,7 +285,9 @@ moderators = list(set(moderators))
 # Combine to make a list of speakers
 speakers = candidates + moderators
 
+print("\nCandidate names:")
 print(candidates)
+print("\nModerator names:")
 print(moderators)
 ```
 
@@ -295,18 +297,23 @@ print(moderators)
 
 ## Question 2a
 > Convert the text so that for each debate, the spoken text is split up into individual chunks of text spoken by each speaker (including the moderator). If there are two chunks in a row spoken by a candidate, combine them into a single chunk. Make sure that any formatting and non-spoken text (e.g., the tags for ‘Laughter’ and ‘Applause’) is stripped out. Report the number of chunks per speaker.
+---
 
 I first create a class called `Debate`, and define its methods. 
 
-In `find_non_spoken`, I find and strip out non-spoken text, which is normally indicated by single words being in parentheses or square brackets. In `strip_non_spoken`, I trip the transcript of the non-spoken texts. I wrote some additional functions for sanity checks.
+In `find_non_spoken`, I find and strip out non-spoken text, which is normally indicated by single words in parentheses or square brackets. 
+
+I also realised there was an issue with the 2020 debate transcript. Somehow, the dialogue was processed as "[SPEAKER]:[dialogue]", i.e., with no space between the colon and dialogue, whereas all the other transcripts were in the format "[SPEAKER]: [dialogue]". So I had to do some additional processing on that particular transcript.
+
+In `strip_non_spoken`, I strip the transcript of the non-spoken texts. I wrote some additional functions (`count_non_spoken` and `compare_pre_post_strip`) for sanity checks.
 
 ```{python}
 import re
 
-class Debate:
 
+class Debate:
   def __init__(self, debates_body):
-      self.debates_body = debates_body
+    self.debates_body = debates_body
 
   def find_non_spoken(self):
     """
@@ -351,6 +358,19 @@ class Debate:
 
     return debates_stripped
 
+  def fix_colons(self, debate):
+    """
+    Everytime "SPEAKER:" is encountered, replace with "SPEAKER: ",
+    i.e., with a space after colon.
+
+    Returns:
+        str: Debate transcript with spaces after colons.
+    """
+    colon_pattern = r"([A-Z]+:)"
+    colon_replacement = r"\1 "
+    updated_transcript = re.sub(colon_pattern, colon_replacement, debate)
+    return updated_transcript
+
   def count_non_spoken(self, non_spoken_word):
     """
     Count occurrences of a specified "non-spoken word" in a debate.
@@ -358,7 +378,9 @@ class Debate:
     Returns:
         list: Counts of occurrences of the word in each debate.
     """
-    counts = [debate.lower().count(non_spoken_word) for debate in self.debates_body]
+    counts = [
+        debate.lower().count(non_spoken_word) for debate in self.debates_body
+    ]
     return counts
 
   def compare_pre_post_strip(self, non_spoken_word):
@@ -372,9 +394,9 @@ class Debate:
     counts_pre_strip = self.count_non_spoken(non_spoken_word)
     stripped_debates = Debate(self.strip_non_spoken())
     counts_post_strip = stripped_debates.count_non_spoken(non_spoken_word)
-    return print(f"Counts of '{non_spoken_word}': \n\
-          Pre-strip:\t {counts_pre_strip} \n\
-          Post-strip:\t {counts_post_strip}\n")
+    return print(f"Counts of '{non_spoken_word}' for each year: \n\
+      Pre-strip:\t {counts_pre_strip} \n\
+      Post-strip:\t {counts_post_strip}\n")
 ```
 
 I test the class and its methods below, while also running some sanity checks:
@@ -388,21 +410,30 @@ debates = Debate(debates_body)
 # Strip debates of non-spoken words
 debates_stripped = debates.strip_non_spoken()
 
+# Do some special processing on the 2020 debate transcript
+# Since the formatting is different from the other debates
+debates_stripped[5] = debates.fix_colons(debates_stripped[5])
+
 # Check that non-spoken words are properly stripped
 debates.compare_pre_post_strip("applause")
 debates.compare_pre_post_strip("laughter")
 debates.compare_pre_post_strip("crosstalk")
 ```
 
-To retrieve the chunks, I create a new class called `Chunk` that takes a string/transcript. In `get_debate_year`, I extract the year corresponding to each debate. I wrote `strip_preamble` to get rid of the preamble in each transcript, which would otherwise interfere when counting the chunks of each speaker. 
+Note that the single occurrence of "applause" from the post-stripped transcript was from the moderator literally saying the word "applause". 
+
+To retrieve the chunks, I create a new class called `Chunk` that takes a string/transcript. In `get_debate_year`, I extract the year corresponding to each debate. I wrote `strip_preamble` to get rid of the preamble formatting in each transcript, which would otherwise interfere when counting the chunks of each speaker. 
 
 In `get_chunks`, I subdivide each transcript into chunks based on the idea that each chunk will be marked by a speaker (candidate or moderator; stylised in all caps) followed by a colon, using regex. I needed to adjust the regex iteratively, since each transcript had its own transcription idiosyncracies.
 
-In `count_chunks`, I count the number of occurrences that each speaker has their own chunk in a debate, ensuring that only speakers that appear in the `speakers` list are included in the resultant dictionary.
+In `count_chunks`, I count the number of occurrences that each speaker has their own chunk in a debate, ensuring that only speakers that appear in the `speakers` list are included in the resultant dictionary. Furthermore, I remove dictionary items where the counts are less than 5, since these are likely not real chunks, but some artefact of the transcript metadata or the preamble.
+
+`check_chunk_repeats` is a sanity check function that ensures that the occurrence of two chunks spoken in a row by the same candidate or speaker is zero. If not, then I had to go and revise my code for chunking the transcript. 
 
 ```{python}
 #| label: 2a-chunk
 #| cache: true
+
 class Chunk:
   def __init__(self, transcript):
     self.transcript = transcript
@@ -422,26 +453,28 @@ class Chunk:
 
   def strip_preamble(self):
     """
-    Strips the transcript preamble up to the first time a name in `moderator` 
+    Strips the transcript preamble up to the first time a name in `moderator`
     is encountered.
 
     Returns:
         str: Transcript with preamble removed.
     """
-    preamble_pattern = r"^(.*?)(?:" \
-                      + "|".join(re.escape(moderator) for moderator in moderators) \
-                      + r"):\s*(.*)"
+    preamble_pattern = (
+      r"^(.*?)(?:"
+      + "|".join(re.escape(moderator) for moderator in moderators)
+      + r"):\s*(.*)"
+    )
     preamble_match = re.search(preamble_pattern, self.transcript)
-    self.transcript = self.transcript[preamble_match.end(1):].strip()
+    self.transcript = self.transcript[preamble_match.end(1) :].strip()
     return self.transcript
 
   def get_chunks(self):
     """
-    Isolates and consolidates chunks of dialogue from the transcript 
+    Isolates and consolidates chunks of dialogue from the transcript
     using regex.
 
     Returns:
-        list: A list of lists, where inner list contains the speaker's 
+        list: A list of lists, where inner list contains the speaker's
               identifier and their consolidated speech chunk.
     """
     # Use regex to find all chunks
@@ -450,26 +483,25 @@ class Chunk:
     matches_list = [list(match) for match in chunk_matches]
 
     # Consolidate chunks if spoken in a row by the same speaker
-    for i in range(len(matches_list) - 1):
-      if matches_list[i][0] == matches_list[i+1][0]:
-        matches_list[i][1] += matches_list[i+1][1]
-        matches_list[i+1][0] = None
-        matches_list[i+1][1] = None
-    
-    # Drop rows where the values are "None"
-    filtered_chunks = [chunk for chunk in matches_list 
-                      if chunk[0] is not None 
-                      and chunk[1] is not None] 
-    
-    return filtered_chunks
+    i = 0
+    while i < len(matches_list) - 1:
+      # Check if the speaker names (the first element) are the same
+      if matches_list[i][0] == matches_list[i + 1][0]:
+        matches_list[i][1] += " " + matches_list[i + 1][1]
+        del matches_list[i + 1]
+      else:
+        i += 1
+
+    return matches_list
 
   def count_chunks(self, chunks):
     """
     Counts the number of chunks per speaker for each debate.
     Only speakers in the `speakers` list are considered.
+    Also drop keys where value is less than 5.
 
     Returns:
-        dict: A dict where the keys are speaker names, and the values 
+        dict: A dict where the keys are speaker names, and the values
               are the counts of chunks per speaker.
     """
     speaker_count = {}
@@ -480,17 +512,36 @@ class Chunk:
       # Ensure speaker is only counted if they are in `speakers` list
       if speaker in speaker_count and speaker in speakers:
         # Increment counter for a particular speaker
-        speaker_count[speaker] += 1  
+        speaker_count[speaker] += 1
       elif speaker in speakers:
         # Initialise value for first time speaker is encoutered
         speaker_count[speaker] = 1
 
+    # Remove items in the dict with values less than 5,
+    # since these likely aren't real chunks
+    speaker_count = {
+      key: value for key, value in speaker_count.items() if value >= 5
+    }
+
     return speaker_count
 
-  def check_chunk_consol(self):
-    ...
-    #See if chunk and chunk+1 speakers are the same
-    #TODO
+  def check_chunk_repeats(self, debate_chunked):
+    """
+    As a sanity check, counts the occurrences of the speaker in
+    consecutive chunks being the same.
+
+    Returns:
+        int: Count where speakers in consecutive chunks is the same.
+    """
+    # See if chunk and chunk+1 speakers are the same
+    repeat_counts = 0
+    for i in range(len(debate_chunked) - 1):
+      if debate_chunked[i][0] == debate_chunked[i + 1][0]:
+        # Print out the offending lines
+        print(f"{debate_chunked[i][0]}: {debate_chunked[i][1]}")
+        print(f"{debate_chunked[i+1][0]}: {debate_chunked[i+1][1]}")
+        repeat_counts += 1
+    return repeat_counts
 ```
 
 Again, I test the class and run some sanity checks:
@@ -498,30 +549,40 @@ Again, I test the class and run some sanity checks:
 #| label: 2a-chunk-sanity
 #| cache: true
 
-deb2020 = Chunk(transcript[6])
-print(debates_stripped[5])
+# Initialise dict to store debate chunks by year
+debate_chunked_year = {}
 
-with open('debate2020_pre.txt', 'w', newline = '') as txtfile:
-    my_writer = txtfile.write(debates_body[5])
-with open('debate2020.txt', 'w', newline = '') as txtfile:
-    my_writer = txtfile.write(debates_stripped[5])
-
-#print(deb1994.strip_preamble())
-
-# Assign each debate to a separate list of lists
+# Assign each debate to a separate instance of Chunk
 for transcript in debates_stripped:
+  # Instantiate Chunk class for each transcript
   debate = Chunk(transcript)
+
+  # Extract debate year
   year = debate.get_debate_year()
-  
+
+  # Remove preamble formatting
   debate.strip_preamble()
-  
+
+  # Chunk the debates, and store the chunks in a dict by year
   debate_chunked = debate.get_chunks()
-  print(debate_chunked)
+  debate_chunked_year[year] = debate_chunked
+
+  # Count the number of chunks per speaker for each year
   chunk_counts = debate.count_chunks(debate_chunked)
   print(f"Chunk counts for {year}: {chunk_counts}")
+
+# Sanity checks
+print("\nCheck that consecutive chunks from the same speaker are combined.")
+print("Count of \"chunk repeats\" per year should be 0.")
+for year, chunks in debate_chunked_year.items():
+  num_repeats = debate.check_chunk_repeats(chunks)
+  print(f"Number of chunk repeats for {year}: {num_repeats}")
 ```
 
+{{< pagebreak >}}
 
+## Question 2b
+> Extract the individual words. To do the extraction I suggest you use existing Python natural language processing packages that can “tokenize” text, but you’re also welcome to use regular expressions, particularly if you want to practice them more. Doing this with 100% accuracy will be hard (particularly for spoken text). Try to handle various issues, but don’t try to be perfect.
+---
 
-Note that the single occurrence of "applause" from the post-stripped transcript was from the moderator literally saying the word "applause". 
-
+I use the [`spaCy`](https://spacy.io/api/doc) package to extract the words.
