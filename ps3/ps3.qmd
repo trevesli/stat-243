@@ -251,6 +251,7 @@ First, I execute the Python file to download and process the HTML.
 #| label: 2-extract-py
 #| cache: true
 #| output: false
+
 ps3prob3 = r"~/fall-2024/ps/ps3prob3.py"
 
 # Expand to full path
@@ -269,26 +270,42 @@ exec(script)
 
 Each debate transcript is thus saved as an element in the list `debates_body`.
 
-I also use the opportunity to extract the list of `candidates` from the `ps3prob3.py` file, as well as the list of `moderators`. 
+I also use the opportunity to extract the list of `candidates` from the `ps3prob3.py` file, as well as the list of `moderators`. I also created a list of speakers for each debate year `speakers_by_year`, which will be utilised in later parts of this assignment.
 
 ```{python}
-#| label: get-names
+#| label: 2-get-names
 #| cache: true
 
 # Get the names of debaters for years of interest 
 candidates = [person for entry in candidates for person in entry.values()]
 
 # Retrieve only unique names, for both candidates and moderators
-candidates = list(set(candidates))
-moderators = list(set(moderators))
+candidates_unique = list(set(candidates))
+moderators_unique = list(set(moderators))
 
 # Combine to make a list of speakers
-speakers = candidates + moderators
+speakers_unique = candidates_unique + moderators_unique
+
+# Create a dict to hold speakers by year
+speakers_by_year = {year: None 
+                    for year in [2000, 2004, 2008, 2012, 2016, 2020]
+                    }
+
+for i, year in enumerate(speakers_by_year.keys()):
+
+  # Initialize the list for the year if it's None
+  if speakers_by_year[year] is None:
+    speakers_by_year[year] = []
+
+  speakers_by_year[year].append(moderators[i])
+  speakers_by_year[year].append(candidates[i * 2])
+  speakers_by_year[year].append(candidates[i * 2 + 1])
 
 print("\nCandidate names:")
-print(candidates)
+print(candidates_unique)
 print("\nModerator names:")
-print(moderators)
+print(moderators_unique)
+#print(speakers_by_year)
 ```
 
 
@@ -309,7 +326,6 @@ In `strip_non_spoken`, I strip the transcript of the non-spoken texts. I wrote s
 
 ```{python}
 import re
-
 
 class Debate:
   def __init__(self, debates_body):
@@ -426,13 +442,20 @@ To retrieve the chunks, I create a new class called `Chunk` that takes a string/
 
 In `get_chunks`, I subdivide each transcript into chunks based on the idea that each chunk will be marked by a speaker (candidate or moderator; stylised in all caps) followed by a colon, using regex. I needed to adjust the regex iteratively, since each transcript had its own transcription idiosyncracies.
 
-In `count_chunks`, I count the number of occurrences that each speaker has their own chunk in a debate, ensuring that only speakers that appear in the `speakers` list are included in the resultant dictionary. Furthermore, I remove dictionary items where the counts are less than 5, since these are likely not real chunks, but some artefact of the transcript metadata or the preamble.
+In `count_chunks`, I count the number of occurrences that each speaker has their own chunk in a debate, ensuring that only speakers that appear in the `speakers` list are included in the resultant dictionary.
 
 `check_chunk_repeats` is a sanity check function that ensures that the occurrence of two chunks spoken in a row by the same candidate or speaker is zero. If not, then I had to go and revise my code for chunking the transcript. 
 
 ```{python}
 #| label: 2a-chunk
 #| cache: true
+
+import spacy
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load spacy nlp model
+nlp = spacy.load('en_core_web_sm')
 
 class Chunk:
   def __init__(self, transcript):
@@ -468,7 +491,7 @@ class Chunk:
     self.transcript = self.transcript[preamble_match.end(1) :].strip()
     return self.transcript
 
-  def get_chunks(self):
+  def get_chunks(self, year):
     """
     Isolates and consolidates chunks of dialogue from the transcript
     using regex.
@@ -477,10 +500,16 @@ class Chunk:
         list: A list of lists, where inner list contains the speaker's
               identifier and their consolidated speech chunk.
     """
-    # Use regex to find all chunks
-    chunk_pattern = r"([A-Z]+): (?<=[A-Z]: )(.*?)(?=[A-Z]*:|$)"
+    # Only create chunks for speakers from a given debate year
+    valid_speakers = speakers_by_year[year]
+
+    # Use regex to find all chunks of dialogue
+    speakers_pattern = '|'.join(valid_speakers)
+    # chunk_pattern = r"([A-Z]+): (?<=[A-Z]: )(.*?)(?=[A-Z]*:|$)"
+    chunk_pattern = rf"({speakers_pattern}): (.*?)(?=\s*({speakers_pattern}):|$)"
     chunk_matches = re.findall(chunk_pattern, self.transcript)
-    matches_list = [list(match) for match in chunk_matches]
+    matches_list = [[speaker, dialogue] 
+                    for speaker, dialogue, _ in chunk_matches]
 
     # Consolidate chunks if spoken in a row by the same speaker
     i = 0
@@ -494,7 +523,7 @@ class Chunk:
 
     return matches_list
 
-  def count_chunks(self, chunks):
+  def count_chunks(self, chunks, speakers):
     """
     Counts the number of chunks per speaker for each debate.
     Only speakers in the `speakers` list are considered.
@@ -517,12 +546,14 @@ class Chunk:
         # Initialise value for first time speaker is encoutered
         speaker_count[speaker] = 1
 
-    # Remove items in the dict with values less than 5,
+    """# Remove items in the dict with values less than 5,
     # since these likely aren't real chunks
     speaker_count = {
       key: value for key, value in speaker_count.items() if value >= 5
-    }
-
+    }"""
+    
+    # print(f"Speaker counts: {speaker_count}")
+    
     return speaker_count
 
   def check_chunk_repeats(self, debate_chunked):
@@ -542,6 +573,132 @@ class Chunk:
         print(f"{debate_chunked[i+1][0]}: {debate_chunked[i+1][1]}")
         repeat_counts += 1
     return repeat_counts
+
+  def extract_words(self, debate_chunked_year):
+    """
+    Extracts words spoken by each speaker for each debate year.
+    using spaCy to tokenize chunks.
+
+    Returns:
+        dict: A dict with debate years as keys each speaker's
+              extracted words as values.
+    """
+
+    # Hold speakers and their words for each debate year
+    debate_year_speakers = {}
+
+    for year, chunks in debate_chunked_year.items():
+      speakers = []
+
+      # Use a set to track seen speakers
+      seen_speakers = set()
+
+      for chunk in chunks:
+        speaker_name = chunk[0]  # Get the speaker name
+        dialogue = chunk[1]  # Get the associated dialogue
+
+        # Run spacy nlp on the dialogue
+        doc = nlp(dialogue)
+        words = [
+            token.text for token in doc 
+            if not token.is_punct 
+            and not token.is_space
+        ]
+
+        # If speaker has not been seen before
+        if speaker_name not in seen_speakers:
+            speakers.append(
+                [speaker_name, words]
+            )  # Append name and words as inner list
+            seen_speakers.add(speaker_name)  # Mark this speaker as seen
+
+        # If speaker has been seen already, simply append their words
+        else:
+          for speaker in speakers:
+            if speaker[0] == speaker_name:
+              speaker[1].extend(words) 
+              break
+
+      # Save the speakers list for the current debate year
+      debate_year_speakers[year] = speakers
+
+    return debate_year_speakers
+
+  def get_avg_word_length(self, extracted_words):
+    """
+    Calculates the average word length by each speaker for each debate year.
+
+    Returns:
+        dict: A dictionary  debate years as keys and
+              each speaker name and their average word length.
+    """
+    # Hold word length speakers and their words for each debate year
+    avg_words = {}
+
+    for year, extr_words in extracted_words.items():
+
+      # Create a new object (list) to store avg word length
+      avg_word_length = []
+
+      for speaker_words in extr_words:
+        speaker = speaker_words[0]
+        words = speaker_words[1]
+
+        num_words = len(words)
+        num_chars = sum(len(word) for word in words)
+        avg_length = round(num_chars / num_words, 2)
+
+        avg_word_length.append([speaker, avg_length])
+      
+      avg_words[year] = avg_word_length
+    
+    return avg_words
+
+  def compare_word_counts(self, debates_stripped, extracted_words):
+    """
+    Compares the word counts of un-chunked transcripts with 
+    extracted word counts for each debate year.
+
+    Prints:
+        The raw word count, extracted word count, and 
+        differential for each debate year.
+    """
+    # Create a list to store word count of un-chunked transcipts
+    raw_word_count = []
+
+    for debate in debates_stripped:
+      # Instantiate `Chunk` class
+      raw_debate = Chunk(debate).strip_preamble()
+      
+      # Use regex to count number of words in the un-chunked transcript
+      raw_words = re.findall(r'\b\w+\b', raw_debate)
+
+      # Count words as part of dialogue
+      count = sum(1 for word in raw_words if not re.match(r'^[A-Z]+:$', word))
+      raw_word_count.append(count)
+
+
+    # Create list to store extracted word count
+    extracted_word_count = []
+
+    # Loop through each debate year
+    for years, words in extracted_words.items():
+      
+      # Sum total amount of words from each debate year
+      count = sum(len(words[speakers][1]) for speakers in range(len(words)))
+      
+      # Store tally in the `extracted_word_count` list
+      extracted_word_count.append(count)
+
+
+    # For each debate year, compare the raw and extracted word counts
+    for year, i in zip(extracted_words.keys(), range(len(raw_word_count))):
+      difference = (raw_word_count[i] - extracted_word_count[i]) \
+                    / raw_word_count[i] * 100
+      print(f"{year} Debate")
+      print(f"Raw word count: \t {raw_word_count[i]}")
+      print(f"Extr. word count: \t {extracted_word_count[i]}")
+      print(f"Difference: \t\t {difference:.2f}%\n")
 ```
 
 Again, I test the class and run some sanity checks:
@@ -564,11 +721,11 @@ for transcript in debates_stripped:
   debate.strip_preamble()
 
   # Chunk the debates, and store the chunks in a dict by year
-  debate_chunked = debate.get_chunks()
+  debate_chunked = debate.get_chunks(year)
   debate_chunked_year[year] = debate_chunked
 
   # Count the number of chunks per speaker for each year
-  chunk_counts = debate.count_chunks(debate_chunked)
+  chunk_counts = debate.count_chunks(debate_chunked, speakers_unique)
   print(f"Chunk counts for {year}: {chunk_counts}")
 
 # Sanity checks
@@ -579,10 +736,394 @@ for year, chunks in debate_chunked_year.items():
   print(f"Number of chunk repeats for {year}: {num_repeats}")
 ```
 
+
 {{< pagebreak >}}
+
 
 ## Question 2b
 > Extract the individual words. To do the extraction I suggest you use existing Python natural language processing packages that can “tokenize” text, but you’re also welcome to use regular expressions, particularly if you want to practice them more. Doing this with 100% accuracy will be hard (particularly for spoken text). Try to handle various issues, but don’t try to be perfect.
 ---
 
-I use the [`spaCy`](https://spacy.io/api/doc) package to extract the words.
+I use the [`spaCy`](https://spacy.io/api/doc) package to extract the words. I included it as a function in the `Chunk` class above, called `extract_words`. This function takes each debate and creates a list for each unique speaker along with an inner list that collates their individual words. In the code chunk below, the `Chunk` class is again instantiated on the chunked dictionary.
+
+```{python}
+#| label: 1c-extract-words
+#| cache: true
+
+# Instantiate the `Chunk` class
+chunks = Chunk(debate_chunked_year)
+
+# For each debate, extract words for each speaker
+extracted_words = chunks.extract_words(debate_chunked_year)
+```
+
+An example of the word extraction output (truncated) is shown below:
+```{python}
+#| label: 1c-example
+#| cache: true
+
+# Loop through each debate year
+for year, speakers in extracted_words.items():
+  print(f"\nDebate year: {year}")
+
+  # Loop through each speaker in each debate year
+  for speaker in speakers:
+    print(f"{speaker[0]}: {speaker[1][:7]}")
+```
+
+I finally run a sanity check to make sure that roughly the right number of words is extracted. I do this by comparing the extracted word count to the word count from the each debate's un-chunked transcript, which is defined as a function `compare_word_counts` in the `Chunk` class from Question 2a.
+```{python}
+#| label: 2c-sanity
+#| cache: true
+
+Chunk(extracted_words).compare_word_counts(debates_stripped, extracted_words)
+```
+
+The sanity check results show that the `extract_words` function is working as it should, given the small differentials between the raw word counts and the extracted word counts.
+
+
+{{< pagebreak >}}
+
+
+# Question 2c
+> For each candidate, for each debate, count the number of words and characters and compute the average word length for each candidate. Compare these between candidates and over time in some basic fashion.
+---
+
+To complete this question, I wrote a function called `get_avg_word_length` which I included in the `Chunk` class in Question 2a. The function takes the extracted words as input, and calculates the average words for each candidate, for each debate:
+
+```{python}
+#| label: 2c-avg-word
+#| cache: true
+
+# Instantiate `Chunk` class on `extracted_words`
+avg_words = Chunk(extracted_words).get_avg_word_length(extracted_words)
+
+for year, debate in avg_words.items():
+  print(f"\nAverage word lengths for {year} debate:")
+  
+  for speaker in debate:
+    print(f"{speaker[0]}: {speaker[1]}")
+```
+
+A quick way to compare word lengths between candidates is to simply rank the candidates by "verbosity", as well as by plotting bar charts.
+
+```{python}
+#| label: 2c-verbosity
+#| cache: true
+
+import pandas as pd
+
+# Initialise an empty list to store verbosity rank
+verbosity = []
+
+for year, debates in avg_words.items():
+
+  for speaker in debates:
+
+    # We only care about candidates, not moderators:
+    if speaker[0] not in moderators_unique:
+      
+      # Append a dict for each candidate and their avg word length
+      verbosity.append({
+        'Candidate':        speaker[0],
+        'Year':             year,
+        'Avg Word Length':  speaker[1],
+        'Candidate-Year':   f"{speaker[0]} ({year})"
+      })
+
+# Convert the lsit of dicts to a dataframe
+df_verbosity = pd.DataFrame(verbosity)
+
+# Rank the candidates by verbosity
+print(df_verbosity
+      .sort_values("Avg Word Length", ascending=False)
+      .drop("Candidate-Year", axis=1))
+
+# Plot bar charts
+for candidate in verbosity:
+  plt.bar(df_verbosity["Candidate-Year"],
+          df_verbosity["Avg Word Length"],
+          )
+
+# Plot formatting, including changing x-axis to go up in increments of 4
+plt.title("Average Word Length Between Candidates")
+plt.xticks(rotation=90)
+plt.xlabel("Candidate")
+plt.ylabel("Average Word Length")
+plt.show()
+```
+
+We see a general trend that the average word length decreases as time goes on. Could this have something to do with Trump and Biden being more accelerated in age?
+
+To rank candidates' verbosity over time, we extract data for candidates who have appeared in more than one debate. We can then do a simple plot of their average word lengths over time.
+```{python}
+#| label: 2c-verbosity-time
+
+import matplotlib.pyplot as plt
+
+# Count occurrences of each candidate
+counts = df_verbosity["Candidate"].value_counts()
+
+# Make list of candidates who have appeared more than once
+double_candidates = counts[counts > 1].index.tolist()
+
+# Create second df with double_candidates
+df_verbosity_time = df_verbosity[
+  df_verbosity["Candidate"].isin(double_candidates)
+]
+
+print(df_verbosity_time.sort_values("Year").drop("Candidate-Year", axis=1))
+
+# Plot line charts
+for candidate in double_candidates:
+  isolate_candidate = df_verbosity[df_verbosity["Candidate"] == candidate]
+  plt.plot(isolate_candidate["Year"],
+           isolate_candidate["Avg Word Length"],
+           label=candidate,
+           linewidth=3
+          )
+
+# Plot formatting, including changing x-axis to go up in increments of 4
+plt.title("Average Word Length Over Time for Repeat Candidates")
+plt.xticks(range( 
+              min(df_verbosity["Year"]), 
+              max(df_verbosity["Year"]) + 1, 
+              4
+            ))
+plt.xlabel("Year")
+plt.ylabel("Average Word Length")
+plt.legend()
+plt.show()
+```
+The main thing to note is how low Trump's average word length is compared to Bush and Obama.
+
+
+{{< pagebreak >}}
+
+
+# Question 2d
+> Do some checking of your functions on simple test inputs. For the sake of time, you don’t need to set up formal testing, and this doesn’t need to be extensive.
+---
+I have already implemented error checking and sanity checks in the questions above--please refer to each respective question part. For further validation, I can create dummy dialogues and run by functions on it:
+```{python}
+#| label: 2d
+
+# Create a simple test input
+dummy_string = 'TRUMP: That’s not what you’ve said and it’s not what your \
+party is saying.BIDEN: That is simply a lie.TRUMP: Your party doesn’t \
+say it. Your party wants to go socialist medicine and socialist \
+healthcare.BIDEN: The party is me. Right now, I am the Democratic Party.\
+TRUMP: And they’re going to dominate you, Joe. You know that.BIDEN: \
+I am the Democratic Party right now.TRUMP: Not according to Harris.'
+
+# Initiate the chunk class on the test input
+dummy = Chunk(dummy_string)
+dummy_year = 2020
+
+# Get chunks
+print("\nGetting chunks (Question 2a)...")
+dummy_chunked = dummy.get_chunks(dummy_year)
+for chunk in dummy_chunked:
+  print(f"{chunk[0]}: {chunk[1][:22]} ...")
+
+# Count number of chunks per speaker
+print("\nCounting number of chunks per speaker (Question 2a) ...")
+dummy_chunk_counts = dummy.count_chunks(dummy_chunked, speakers_unique)
+print(dummy_chunk_counts)
+
+# Extract words from chunks
+print("\nExtracting words (Question 2b) ...")
+dummy_dict = {dummy_year: dummy_chunked}
+dummy_extracted = dummy.extract_words(dummy_dict)
+for year, speakers in dummy_extracted.items():
+  for speaker in speakers:
+    print(f"{speaker[0]}: {speaker[1][:8]} ...")
+
+# Calculate average word length
+print("\nCalculating average word length (Question 2c) ...")
+avg_words = Chunk(dummy_extracted).get_avg_word_length(dummy_extracted)
+for year, debate in avg_words.items():  
+  for speaker in debate:
+    print(f"{speaker[0]}: {speaker[1]}")
+```
+
+The output above on a simple input verifies that the functions in my class work as expected.
+
+
+{{< pagebreak >}}
+
+
+# Question 2e
+> (Extra credit) For each candidate, count the following words or word stems (feel free to replace some or all of these with words or expressions of your choice) and store in a data structure: I, we, America{,n}, democra{cy,tic}, republic, Democrat{,ic}, Republican, free{,dom}, terror{,ism}, safe{,r,st,ty}, {Jesus, Christ, Christian}. Make a plot or two and comment briefly on the results.
+---
+
+First, I edit the list of words to make them regex-able. 
+
+I try to collate each candidate's words from across different debate years, as I'm not comparing over the time dimension.
+
+I then tally the counts that each expression appears in each candidate's words.
+
+I create a dataframe with each column corresponding to the words/expressions above, and I save my word counts for each candidate in this dataframe.
+
+```{python}
+#| label: 2e
+
+exprs = [
+  r"I",
+  r"we",
+  r"America(n)?",
+  r"democra(cy|tic)?",
+  r"republic",
+  r"Democrat(ic)?",
+  r"Republican",
+  r"free(dom)?",
+  r"terror(ism)?",
+  r"safe(r|st|ty)?",
+  r"(Jesus|Christ|Christian)",
+]
+
+
+# Create a new list to aggregate each candidates words
+expr_list = []
+[expr_list.append([name, []]) for name in candidates_unique]
+
+for name in expr_list:
+  for speakers in extracted_words.values():
+    # Loop through each speaker in each debate year
+    for speaker in speakers:
+      if speaker[0] == name[0]:
+        name[1].extend(speaker[1])
+        break
+
+# Create a new list to store counts of each expression for each candidate
+expr_counts = []
+for i in range(len(expr_list)):
+  inner = [expr_list[i][0], []]
+  expr_counts.append(inner)
+
+# Now count the occurrences that `exprs` appear for each candidate
+for i, name in enumerate(expr_counts):
+  for expr in exprs:
+    count = 0
+
+    # Replace curly brackets with square brackets
+    pattern = expr
+    matches = re.findall(pattern, " ".join(expr_list[i][1]))
+
+    # Count the occurrences of the word
+    count += len(matches)
+
+    expr_counts[i][1].append(count)
+
+
+# Initialise dataframe
+df = pd.DataFrame(columns=["Candidate"] + exprs)
+
+# Append the counts of `exprs` to the dataframe
+for candidates in expr_counts:
+  # Create new row with candidate name and their respective counts
+  new_row = [candidates[0]] + candidates[1]
+
+  # Append the new row to the DataFrame
+  df.loc[len(df)] = new_row
+
+print(df)
+```
+
+To visualise the data, I can use a heatmap:
+
+```{python}
+#| label: 2e-plot
+
+import seaborn as sns
+
+df_plot = df.set_index('Candidate')
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(df_plot, annot=True, cmap='Reds', fmt='d', linewidth=.5, cbar=False)
+plt.title('Heatmap of Expressions by Candidate')
+plt.xlabel('Expressions')
+plt.ylabel('Candidates')
+plt.show()
+```
+
+The plot highlights the use of the words "I" and "we" between the different candidates. It's interesting that the highest use of "I" is by Trump (or perhaps it isn't that interesting given what we know). Bush and Obama follow, highlighting perhaps the relative importance that each candidate places on themselves.
+
+It's worth noting that the more "egotistical" candidates also score highly on using "we" (namely Obama, Trump, and Bush). It could just be that these three candidates are fond of using pronouns more than the others.
+
+The other insight is that Kerry seems to accentuate "America(n)", while Trump (ironically) and Gore score lowly on this expression.
+
+
+{{< pagebreak >}}
+
+
+# Question 3
+> Now sketch out a design for a functional programming (FP) approach (if your solution to Problem 2 used OOP) or an OOP approach (if your solution to Problem 2 used functional programming). If you’re designing an OOP approach, decide what the classes would be and the fields and methods of those classes. If you’re designing a FP approach, decide what the functions would be and what inputs/output they would use. **To be clear, you do not have to write any of the code for the methods/classes/functions; the idea is just to design the code.** As your response in the OOP case, for each class, please provide a bulleted list of methods and bulleted list of fields and for each item briefly comment what the purpose is. Or in the FP case, for each function, provide a bulleted list of inputs and output and briefly comment on the purpose of each function.
+---
+
+Since I used an OOP approach, I will answer this question with an FP approach in mind.
+
+* **Function**: `find_non_spoken(debates_body)`
+  * **Input**: A list of strings (i.e. debate transcripts) that has been pre-processed
+  * **Output**: A list of non-spoken words (e.g. "Applause", "Laughter")
+  * **Purpose**: Finds non-spoken words from the transcript
+
+* **Function**: `strip_non_spoken(debates_body, non_spoken_list)`
+  * **Input**: The processed debate transcripts as strings, and the list of non-spoken texts from the previous function
+  * **Output**: An updated list of debate transcripts with non-spoken words removed
+  * **Purpose**: Strips out occurrences of non-spoken words from the transcript
+
+* **Function**: `fix_colons(debate)`
+  * **Input**: A string of an individual debate transcript
+  * **Output**: A string of debate with properly formatted colons
+  * **Purpose**: Ensures proper spacing after colons in the speaker identifiers
+
+* **Function**: `count_non_spoken(debates_body, non_spoken_word)`
+  * **Input**: Strings of debate transcripts and a string of non-spoken words to count
+  * **Output**: Integer counts of occurrences of the specified non-spoken word in each debate
+  * **Purpose**: Sanity check to ensure that non-spoken words were properly removed from the trnascript
+
+* **Function**: `compare_pre_post_strip(debates_body, non_spoken_word)`
+  * **Input**: Strings of debate transcripts and a string of non-spoken words to count
+  * **Output**: Tuple with pre-strip counts and post-strip counts
+  * **Purpose**: Sanity check to compare the counts of a specified non-spoken word before and after stripping non-spoken text.
+
+* **Function**: `get_debate_year(transcript)`
+  * **Input**: String of individual debate transcripts 
+  * **Output**: Year of debate as an integer
+  * **Purpose**: Extracts the debate year from the transcript using regex, to build a dictionary
+
+* **Function**: `strip_preamble(transcript, moderators)`
+  * **Input**: String of individual debate transcripts, and list of moderators
+  * **Output**: String of individual debate transcript but with preamble formatting removed
+  * **Purpose**: Strips the introductory content of the transcript up to the first moderator's mention
+
+* **Function**: `get_chunks(transcript, valid_speakers)`
+  * **Input**: String of individual debate transcripts, and list of speakers from a specific debate year
+  * **Output**: List of tuples (each containing a speaker identifier and their dialogue)
+  * **Purpose**: List of tuples (each containing a speaker identifier and their dialogue)
+
+* **Function**: `count_chunks(chunks, speakers)`
+  * **Input**: List of tuples containing the speaker and their dialogue, and a list of valid speaker names
+  * **Output**: A dictionary with speaker names as keys, and their chunk counts as values
+  * **Purpose**: Sanity check to count the number of dialogue chunks per speaker 
+
+* **Function**: `check_chunk_repeats(debate_chunked)`
+  * **Input**: List of tuples containing the speaker and their dialogue
+  * **Output**: Integer count of repeated speakers in consecutive chunks
+  * **Purpose**: Sanity check to verify there are no occurrences of the same speaker being in consecutive dialogue chunks
+
+* **Function**: `extract_words(debate_chunked_year)`
+  * **Input**: : Dictionary where keys are debate years and values are lists of dialogue chunks
+  * **Output**: Dictionary with debate years as keys and lists of speakers and their spoken words as values
+  * **Purpose**: Extracts words spoken by each speaker for each debate year using `spaCy` nlp
+
+* **Function**: `get_avg_word_length(extracted_words)`
+  * **Input**: : Dictionary where keys are debate years and values are lists of dialogue chunks
+  * **Output**: Dictionary with debate years as keys and average word lengths for each speaker
+  * **Purpose**: Calculates the average word length for each speaker in each debate year
+
+* **Function**: `get_avg_word_length(extracted_words)`
+  * **Input**: : List of cleaned debate transcripts, and a dictionary with debate years as keys and speakers' extracted words as values
+  * **Output**: Prints raw (un-chunked) word counts, extracted word counts using nlp, and their percentage difference for each debate year
+  * **Purpose**: Sanity check that the difference in word counts between un-chunked transcripts and extracted words is reasonable, to verify if the `get_avg_word_length` function operated as intended or not
