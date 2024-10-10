@@ -57,7 +57,7 @@ def memoization_func(func):
 To test my decorator, I run it on the log-gamma function and a function to multiply two numbers together. Note that I clear the cache when timing the case WITHOUT memoization, otherwise subsequent executions during the timing process would already be using the cached result from the first execution, thus making the comparison pointless.
 ```{python}
 #| label: 1-test
-#| cache: true
+#| cache: false
 
 import timeit
 import math
@@ -114,13 +114,13 @@ print(f"{multiply_yes_cache:.20f} seconds.\n")
 
 # Compare results
 print(
-  f"Log-gamma speedup: \
-  {round(log_gamma_time_no_cache/log_gamma_time_yes_cache, 2)}"
+  f"Log-gamma speedup: \t\t"
+  f"{round(log_gamma_time_no_cache/log_gamma_time_yes_cache, 2)}"
 )
 
 print(
-  f"Multiplication speedup: \
-  {round(multiply_no_cache/multiply_yes_cache, 2)}"
+  f"Multiplication speedup: " 
+  f"{round(multiply_no_cache/multiply_yes_cache, 2)}"
 )
 
 ```
@@ -176,7 +176,10 @@ We can try the code for lists of more complicated objects to see if the behaviou
 
 for length in lengths:
   # Create a list of dictionaries to represent complex objects
-  complex_list = [(random.uniform(0, 1), f"string_{i}", i) for i in range(length)]
+  complex_list = [
+    (random.uniform(0, 1), f"string_{i}", i) 
+    for i in range(length)
+  ]
 
   # Get size of the list object
   list_size = sys.getsizeof(complex_list)
@@ -262,7 +265,7 @@ print(
 
 # Modify another arbitrary element in the complex list
 complex_list_copy[1][80] = 'change me'
-print("\nFor the \"complex\" list (second example, using inner list):")
+print("\nFor the \"complex\" list (second example using inner list):")
 print(
   "ID of original element: \t\t\t\t\t" 
   f"{id(complex_list[1][80])}"
@@ -276,3 +279,380 @@ print(
   id(complex_list[1][80]) == id(complex_list_copy[1][80])
 )
 ```
+
+
+{{< pagebreak >}}
+
+
+# Question 2c
+> Consider creating these lists.
+> 
+```{python}
+#| label: 2c-question
+#| cache: true
+
+my_int = 1
+my_real = 1.0
+my_string = 'hat'
+
+xi = [1, my_int, my_int, 2]
+yi = [1, my_int, my_int, 2]
+xr = [1.0, my_real, my_real, 2.0]
+yr = [1.0, my_real, my_real, 2.0]
+
+xc = ['hat', my_string, my_string, 'dog']
+yc = ['hat', my_string, my_string, 'dog']
+```
+> 
+> What is different about how the elements in these lists are stored?
+---
+
+We can run an ID-check to see where/how each variable and each item in each list is stored in memory.
+
+```{python}
+#| label: 2c-comparison
+#| cache: true
+
+print(f"my_int has id: \t\t {id(my_int)}")
+print(f"my_real has id: \t {id(my_real)}")
+print(f"my_string has id: \t {id(my_string)}")
+
+lists = {
+  'xi': xi, 
+  'yi': yi, 
+  'xr': xr, 
+  'yr': yr, 
+  'xc': xc, 
+  'yc': yc,
+}
+
+for list_name, list_item in lists.items():
+  print(f"\nList '{list_name}':")
+  for j, element in enumerate(list_item):
+    print(f"id of Element {j}: {id(element)}")
+```
+
+The output shows that Python re-uses references to integers and strings in lists, instead of creating new objects that have the same value. We see this reflected in `xi`, `yi`, `xc`, and `yc`, where elements with the same value share the same memory address. This [resource](https://www.geeksforgeeks.org/object-interning-in-python/) explains that Python uses **object interning**, which is a technique used "to optimize memory usage ... by reusing immutable objects instead of creating new instances. It is particularly useful for strings, integers and user-defined objects". Specifically, this is applicable for integers in the range of -5 to 256. For strings, this is helpful for speeding up operations by allowing comparisons by memory address, instead of comparisons on a character-by-character basis.
+
+Interestingly, in `xr` and `yr`, the same observation of "object interning" doesn't appear to hold for floats. Instead, a new object in memory is created every time a float with the same value is initialised in a different list. This reflects how Python handles mutable/larger objects differently (floats) from smaller, immutable types (integers and strings) in order to optimse memory usage.
+
+
+{{< pagebreak >}}
+
+
+## Question 3
+> Suppose I want to compute the trace of a matrix, $A$, where $A = XY$. The trace is $\sum_{i=1}^n A_{ii}$. Assume both $X$ and $Y$ are $n \times n$. A naive implementation is `np.sum(np.diag(X@Y))`.
+
+## Question 3a
+> What is the computational complexity of that naive implementation: $O(n)$, $O(n^2)$, or $O(n^3)$? You can just count up the number of multiplications and ignore the additions. Why is that naive implementation inefficient?
+---
+
+The computational complexity is $O(n^3)$: 
+1. $n$ matrix multiplication to get one element of $A$
+2. Mutiplying over $n$ rows
+3. Multipling over $n$ columns
+
+This is inefficient because it has to do the entire matrix multiplication across $X$ and $Y$ just to get the diagonals for the trace. We can achieve the same result with $n^2$ operations--I show this in the subsequent question. 
+
+
+{{< pagebreak >}}
+
+
+## Question 3b
+> Write Python code that (much) more eﬀiciently computes the trace using vectorized/matrix operations on the matrices. You will not be able to use map or list comprehension to achieve this speedup. What is the computational complexity of your solution?
+---
+
+If we take advantage of vectorisation and use the dot product instead, we can get the same result more efficiently by doing `np.sum(X * Y.T)`. The computational complexity is now $O(n^2)$, since element-wise multiplication results in only $n \times n$ operations.
+
+We can test that this gets the same result as the naive implementation, but around twice the speed (depending on Jupyter vs Quarto rendering):
+
+```{python}
+#| label: 3b-calc
+#| cache: false
+
+import numpy as np
+import timeit
+
+# Generate two random n x n matrices
+n = 8
+X = np.random.rand(n, n)
+Y = np.random.rand(n, n)
+
+# Function to compute the naive solution
+def trace_naive():
+  return np.sum(np.diag(X @ Y))
+
+# Function to compute the vectorized solution
+def trace_vectorised():
+  return np.sum(X * Y.T)
+
+# Time both methods and compute solutions
+naive_time = timeit.timeit(trace_naive, number=100)
+naive_soln = trace_naive()
+
+vector_time = timeit.timeit(trace_vectorised, number=100)
+vector_soln = trace_vectorised()
+
+print(
+  f"Trace using naive implementation: \t\t" 
+  f"{round(naive_soln, 4)} ({round(naive_time, 8)} s)"
+)
+print(
+  f"Trace using vectorised implementation: \t"
+  f"{round(vector_soln, 4)} ({round(vector_time, 8)} s)"
+)
+```
+
+
+{{< pagebreak >}}
+
+
+# Question 3c
+> Create a plot, as a function of $n$, to demonstrate the scaling of the original implementation compared to your improved implementation.
+---
+
+I interpret this question to compare the performance of the naive versus vectorised implementations as the size of the $n \times n$ matrices grow.
+
+```{python}
+#| label: 3c
+#| cache: true
+
+import matplotlib.pyplot as plt
+
+# First generate linear values of n
+sizes = np.arange(5, 41)
+
+# Initialise empty lists to store results
+naive_times = []
+vector_times = []
+
+# Make computations
+for n in sizes:
+  # Create matrixes
+  X = np.random.rand(n, n)
+  Y = np.random.rand(n, n)
+
+  # Calculate times
+  naive_time = timeit.timeit(trace_naive, number=5000)
+  vector_time = timeit.timeit(trace_vectorised, number=5000)
+
+  # Append times to lists
+  naive_times.append(naive_time)
+  vector_times.append(vector_time)
+
+plt.plot(sizes, naive_times, label="Naive implementation")
+plt.plot(sizes, vector_times, label="Vectorised implementation")
+plt.title(
+  "Vectorised implementation \n"
+  "outperforms the naive implementation", 
+  size=12
+)
+plt.xlabel("Size $n$ for $n x n$ matrices $A$ and $B$", size=9)
+plt.ylabel("Time (s)", size=9)
+plt.legend()
+plt.show()
+```
+
+The sudden spikes in the graph could be attributed to the computation at a given size $n$ exceeding the cache's capacity, and so the timing takes a hit as Python has to fetch data from main memory.
+
+
+{{< pagebreak >}}
+
+
+# Question 3d
+> (Extra credit) Implement your more efficient version in using Jax (see Section 9 of Unit 5) and compare the timing to the numpy implementation, both with and without using `jax.jit()`.
+---
+
+For this question, I tried to follow the example in Unit 5 of the course notes.
+
+Note that since the first call of `jax.jit()` will take a longer time for the compilation, I've called it once before the timing to make a fair comparison.
+
+```{python}
+#| label: 3d
+#| cache: true
+
+import jax
+import jax.numpy as jnp
+
+# Jax function to compute the vectorized solution
+def trace_jnp(X_jax, Y_jax):
+    return jnp.sum(X_jax * Y_jax.T)
+
+# Evaluate performance for two sizes of matrixes, one small and another larger
+n_list = [50, 1000]
+
+for size in n_list:
+
+  # Generate 2 random matrices
+  X = np.random.rand(size, size)
+  Y = np.random.rand(size, size)
+
+  # Convert numpy matrices to JAX
+  X_jax = jnp.array(X)
+  Y_jax = jnp.array(Y)
+
+  # Create a jitted version trace_jnp
+  trace_jnp_jit = jax.jit(lambda: trace_jnp(X_jax, Y_jax))
+
+  # Call jitted version once to compile
+  trace_jnp_jit()
+
+  # Time the implementations
+  naive_time = timeit.timeit(trace_naive, number=500)
+  vector_time = timeit.timeit(trace_vectorised, number=500)
+  jax_time = timeit.timeit(lambda: trace_jnp(X_jax, Y_jax), number=500)
+  jax_jit_time = timeit.timeit(trace_jnp_jit, number=500)
+
+  # Time the speedups
+  vector_speedup = naive_time / vector_time
+  jax_speedup = naive_time / jax_time
+  jax_jit_speedup = naive_time / jax_jit_time
+
+  # Print times
+  print(f"\nFor n = {size}:")
+  print(
+    f"Naive implementation time: \t\t "
+    f"{naive_time:.8f}"
+  )
+  print(
+    f"Vectorised implementation time:  "
+    f"{vector_time:.8f} ({vector_speedup:.2f} speedup)"
+  )
+  print(
+    f"JAX implementation time: \t\t "
+    f"{jax_time:.8f} ({jax_speedup:.2f} speedup)"
+  )
+  print(
+    f"Jitted JAX implementation time:  "
+    f"{jax_jit_time:.8f} ({jax_jit_speedup:.2f} speedup)"
+  )
+```
+
+Note that at smaller matrix sizes, we see the jitted JAX implementation being far faster than the naive or vectorised implementations. However, the simple JAX implementation is slower than either the naive or vectorised, likely because the initial compilation overhead of setting up a small matrix in JAX outweighs the `numpy` overhead for an equivalently small-sized matrix. 
+
+However, for a larger 1000 x 1000 matrix, we clearly see the expected performance gains from JAX, and certainly with the jitted JAX implementation (with a speedup of 3 times the order of magnitude).
+
+
+{{< pagebreak >}}
+
+
+# Question 3
+> Suppose we have a matrix in which each column is a vector of probabilities that add to one, and we want to generate a sample from the categorical distribution represented by the probabilities in each column. For example, the first column might be (0.9, 0.05, 0.05) and the second column might be (0.1, 0.85, .0.5). When we generate the first sample, it is very likely to be a 1 (a 0 in Python) and the second sample is very likely to be a 2 (a 1 in Python). We could do this using a for loop over the columns of the matrix, and `np.random.choice()`, but that is a lot slower than some other ways we might do it because it is a loop executing in Python over many elements (columns).
+
+```{python}
+#| label: 4-question
+#| cache: true
+
+import numpy as np
+import time
+
+n = 100000
+p = 5
+
+# Generate a random matrix and calculate probabilities.
+np.random.seed(1)
+tmp = np.exp(np.random.randn(p, n))
+probs = tmp / tmp.sum(axis=0)
+
+smp = np.zeros(n, dtype=int)
+
+# Generate sample by column.
+np.random.seed(1)
+start = time.time()
+for i in range(n):
+  smp[i] = np.random.choice(p, size=1, p=probs[:,i])[0]
+print(f"Loop by column time: {round(time.time() - start, 2)} seconds.")
+```
+
+
+{{< pagebreak >}}
+
+
+# Question 3a
+> Consider transposing the matrix and looping over rows. Why might I hypothesize that this could be faster? Is it faster? Why does it make sense that you got the timing result that you got? Does using numpy’s `apply` functionality help at all?
+---
+
+To transpose the matrix and loop over rows, we can do the below:
+```{python}
+#| label: 4a-loop-by-row
+#| cache: false
+
+tmp_transpose = np.transpose(tmp)
+probs_transpose = tmp_transpose / tmp_transpose.sum(axis=1, keepdims=True)
+
+# Generate sample by row.
+np.random.seed(1)
+start = time.time()
+for i in range(n):
+  smp[i] = np.random.choice(p, size=1, p=probs_transpose[i,:])[0]
+print(f"Loop by row time: {round(time.time() - start, 2)} seconds.")
+```
+
+The results above verify that looping by row is faster than by column (timing results might compute differently on Quarto). This is because matrices in numpy are stored in **row-major** order. This means that row values are adjacent to each other, which increases the likelihood of cache hits and reduces the need to fetch data from main memory.
+
+Despite the speedup, the execution times are still in the same order of magnitude. This could be because of the overheads associated with the large number of iterations in the loop, or even the overheads associated with calling the `np.random.choice` function itself in each iteration.
+
+To see if numpy's `apply_along_axis` function would help, we can also time it:
+
+```{python}
+#| label: 4a-numpy-apply
+
+start = time.time()
+smp_col = np.apply_along_axis(
+    lambda prob_col: np.random.choice(p, size=1, p=prob_col)[0],
+    axis=0,
+    arr=probs,
+)
+print(
+  f"numpy.apply_along_axis (column) time: "
+  f"{round(time.time() - start, 2)} seconds."
+)
+
+start = time.time()
+smp_row = np.apply_along_axis(
+    lambda prob_row: np.random.choice(p, size=1, p=prob_row)[0],
+    axis=1,
+    arr=probs_transpose,
+)
+print(
+  f"numpy.apply_along_axis (row) time: "
+  f"{round(time.time() - start, 2)} seconds."
+)
+```
+
+In this case, using `numpy.apply_along_axis` does not seem to save time, regardless if applied by row or column. It's likely because the number of iterations is substantial enough that the overhead associated with calling the `lambda` function each time becomes significant. In fact, it is slower compared to doing straightforward looping through rows.
+
+
+{{< pagebreak >}}
+
+
+# Question 4b
+> How can we do it **much** faster (multiple orders of magnitude), exploiting vectorization? (Hint: This might involve some looping or not, but not in the ways described above. Think about how one can use random uniform numbers to generate from a categorical distribution.)
+---
+
+Vectorisation is the answer. The aim is to somehow operate on the entire array of probabilities all at once. The hint guides us to use `np.random.uniform`. 
+
+I'm not familiar with this function and the process, so the steps below came with the help of ChatGPT:
+* Calculate the cumulative distribution along column.
+* Use `np.random.uniform` to generate uniform random numbers. 
+* Compare in a vectorised fashion where the cumulative probability is greater than the uniform random numbers along the columns. The first instance of this being `True` will be the selected category (retrieved using `argmax`).
+
+```{python}
+#| label: 4b-vectorise
+#| cache: false
+
+# Get cumulative probabilities along columns
+cumulative_probs = np.cumsum(probs, axis=0)
+
+# Create uniform random numbers between 0 and 1
+random_nums = np.random.uniform(0, 1, size=n)
+
+# Vectorise comparison to find the category for each sample
+start = time.time()
+smp = np.argmax(
+  random_nums[np.newaxis, :] < cumulative_probs, axis=0
+)
+print(f"Vectorisation time: {round(time.time() - start, 6   )} seconds.")
+```
+
+And indeed, we see a speedup of nearly 3 orders of magnitude.
