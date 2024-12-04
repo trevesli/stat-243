@@ -156,7 +156,7 @@ We can centre and scale $X$ and $Y$ to mean 0 and variance 1 before computing in
 > Write a Python function to estimate the parameters. Make use of the initialization from part (b). You may use existing regression functions for the update steps. You'll need to include criteria for deciding when to stop the optimization.
 ---
 
-Although the question says to make use of the initialisation from part b, I implemented the random initialisation later in Question 2b (which uses the function defined in this part), since it made the coding more practical. In my function, I take `beta_init` as an input, which assumes randomly initialised values from later parts of this problem set.
+Although the question says to make use of the initialisation from part (b), I implemented the random initialisation later in Question 2b (which uses the function defined in this part), since it made the coding more practical. In my function, I take `beta_init` as an input, which assumes randomly initialised values from later parts of this problem set.
 
 I computed the conditional expectation $z$ and $\textrm{Var}(z)$ using the current estimate of $\beta$. The formulas for these were derived from the Johnson and Kotz equations, with $\rho(\tau)$ being computed based on whether $y_i=0$ or $y_i=1$.
 
@@ -165,6 +165,9 @@ I then updated $\beta$ using weighted least squares, using the conditional expec
 The algorithm was designed to stop if the norm difference between successive $\beta$ values was less than `tol=1e-6`, or after 100 iterations.
 
 ```{python}
+#| label: q1-c
+#| cache: true
+
 import numpy as np
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from scipy.stats import norm
@@ -229,6 +232,7 @@ An initial $\beta_1$ value of 0.5 was selected; if there was no convergence base
 At the end of the code block, I run the EM algorithm with the simulated data to get the $\beta$ values.
 
 ```{python}
+#| label: q1-d
 #| cache: true
 
 # Simulate data from given info
@@ -312,19 +316,19 @@ where:
 * $x_i$ are the predictor values
 * $\beta$ consists of the regression coefficients
 
-After discussing with Chris, we realised that using JAX's default 32-bit floating point numbers would cause problems for the BFGS optimisation later in part b of the homework. Because of this, I had to explicitly set JAX to use 64-bit floating points via `jax.config.update`. I also modified the `JAX_PLATFORM_NAME` and `TF_CPP_MIN_LOG_LEVEL` environment variables to suppress warnings about GPU compatibility
+After discussing with Chris, we realised that using JAX's default 32-bit floating point numbers would cause problems for the BFGS optimisation later in part (b) of the homework. Because of this, I had to explicitly set JAX to use 64-bit floating points via `jax.config.update`. I also modified the `JAX_PLATFORM_NAME` environment variable to suppress warnings about GPU compatibility.
 
 ```{python}
+#| label: q2-a
+#| cache: true
+
 import os
 import jax
 import jax.numpy as jnp
 from jax.scipy.stats import norm
 
 jax.config.update("jax_enable_x64", True)
-
-# Suppress GPU warnings
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+jax.config.update('jax_platform_name', 'cpu')
 
 def nll(beta, X, y):
   # Compute the probit link function (i.e. the cumulative normal dist)
@@ -345,11 +349,14 @@ def nll(beta, X, y):
 > Estimate the parameters for your test cases using `scipy.optimize.minimize()` with the BFGS option. Compare how many iterations EM and BFGS take. Note that this provide a nice test of your EM derivation and code, since you should get the same results from the two optimization approaches. Calculate the estimated standard errors based on the inverse of the Hessian. Note that the `hess_inv` returned by `minimize` is probably NOT a good estimate of the Hessian as it seems to just be the approximation built up during the course of the BFGS iterations and not a good numerical derivative estimate at the optimum. Try using `numdifftools` and compare to what is seen in `hess_inv`. If you get warnings about loss of precision, you may need to tell JAX or PyTorch to use 64-bit rather than 32-bit floating point numbers.
 ---
 
-Below, I defined a function `optimise_bfgs` that takes the `nll` objective function defined in part a and applies Scipy's `minimize` function. I nested the `nll` function  inside the wrapper function `objective` for convenience. This time, the guesses for $\beta$ are initialised with a random guess (to comply with the requirements from Question 1 part c), as well as scaling $X$ and $\beta$ to reduce the sensitivity of the algorithm to bad/excessively big starting values.
+Below, I defined a function `optimise_bfgs` that takes the `nll` objective function defined in part (a) and applies Scipy's `minimize` function. I nested the `nll` function  inside the wrapper function `objective` for convenience. This time, the guesses for $\beta$ are initialised with a random guess (to comply with the requirements from Question 1 part (c)), as well as scaling $X$ and $\beta$ to reduce the sensitivity of the algorithm to bad/excessively big starting values.
 
 Since we were advised in the problem formulation that the `hess_inv` returned by Scipy is not a good estimate of the Hessian, the standard errors calculated from `numdifftools` are also outputted below.
 
 ```{python}
+#| label: q2-b
+#| cache: true
+
 import scipy.optimize as opt
 import numdifftools as ndt
 
@@ -409,7 +416,7 @@ It seems that the BFGS method was able to get to the optimum in fewer iterations
 
 It's also worth noting that the estimated standard errors from the `hess_inv` returned by Scipy's `minimize` resulted in more or less the same values as those returned from `numdifftools`'s numerical differentiation method, despite what is mentioned in the problem description. This could be because the Scipy developers may have updated the method recently to be more numerically robust, or alternatively that the problem has a well-conditioned Hessian near the optimum.
 
-No precision warnings were encountered, likely due to scaling of $X$ and $\beta$, and using 64-bit floating points from Question 2 part a.
+No precision warnings were encountered, likely due to scaling of $X$ and $\beta$, and using 64-bit floating points from Question 2 part (a).
 
 
 {{< pagebreak >}}
@@ -419,7 +426,62 @@ No precision warnings were encountered, likely due to scaling of $X$ and $\beta$
 > As part of this, try a variety of starting values and see if you can find ones that cause the optimization **not** to converge using BFGS. Also try them with Nelder-Mead.
 ---
 
-Text
+By simply changing the scaling factor, I can get different $\beta$ values that do not converge. I also defined a Nelder-Mead optimise function, and then the convergence is compared at the end with BFGS.
+
+```{python}
+#| label: q2-c
+#| cache: true
+
+# Nelder-Mead optimiser
+def optimise_nm(X, y, beta_init):
+  def objective(beta):
+      return nll(beta, X, y)
+  
+  result = opt.minimize(objective, beta_init, 
+    method='Nelder-Mead', options={'maxiter': 100, 'xatol': 1e-6}
+    )
+  return result
+
+# Initialise data based on Q2, part (c)
+np.random.seed(52)
+n = 100
+X = np.random.randn(n, 3)
+X = (X - X.mean(axis=0)) / X.std(axis=0)  
+y = np.random.randint(0, 2, n)
+
+# Get a range of scaling factors
+scale_list = [0.1, 0.2, 1, 1.1, 1.2]
+starting_values = [np.random.randn(X.shape[1]) * scale for scale in scale_list]
+results = []
+
+for beta_init in starting_values:
+  # BFGS 
+  result_bfgs = optimise_bfgs(X, y, beta_init)
+  beta_bfgs = result_bfgs.x
+  bfgs_converged = result_bfgs.success
+  
+  # Nelder-Mead 
+  result_nm = optimise_nm(X, y, beta_init)
+  beta_nm = result_nm.x
+  nm_converged = result_nm.success
+  
+  # Store results
+  results.append({
+    'beta_init': beta_init,
+    'beta_bfgs': beta_bfgs,
+    'bfgs_converged': bfgs_converged,
+    'beta_nm': beta_nm,
+    'nm_converged': nm_converged
+  })
+
+# Analyze results
+for res in results:
+  print(f"Starting betas: {res['beta_init']}")
+  print(f"  BFGS Converged?:          {res['bfgs_converged']}")
+  print(f"  Nelder-Mead Converged?:   {res['nm_converged']}\n")
+```
+
+The results show that BFGS and Nelder-Mead are both sensitive to starting values, with different initializations leading to varied convergence results. For some initialisations, BFGS converges successfully while Nelder-Mead fails (and vice versa). What seems to be common to both methods is that larger starting values lead to failure (maybe because it starts the algorithm in parts of the parameter space with steep gradients or where it's ill-conditioned?).
 
 
 {{< pagebreak >}}
@@ -429,7 +491,77 @@ Text
 > Now use JAX or PyTorch automatic differentiation (AD) functionality to create a gradient function. Set up your objective and gradient functions to use just-in-time compilation (you can use `jit()` or `@jit` for JAX and `torch.compile` or `@torch.compile` for PyTorch). Use these functions to find the parameters using BFGS. Check that you get the same results as in (b) and compare the number of iterations and timing to using BFGS without providing the gradient function (and thereby relying on scipy using numerical differentiation). Finally, use JAX or PyTorch functionality to create a Hessian function and use it to calculate the Hessian at the optimum. Compare the inverse of the Hessian and the estimated standard errors to what you got in part (b).
 ---
 
-Text
+In the code below, I use JAX's own `scipy.optimize` function, and use it together with a gradient function I define as `grad_nll` and a Hessian function `hess_nll`, both using just-in-time compilation. The objective function was already defined in part (a) to use JAX. 
 
+The initialisation is the same as in part (b) to allow a fair comparison.
 
-{{< pagebreak >}}
+```{python}
+#| label: q2-d
+#| cache: true
+
+import jax.scipy.optimize as jopt
+from jax import jit, grad, hessian
+import time
+
+# Define gradient function with jit 
+grad_nll = jit(grad(nll))
+
+# Define NLL Hessian with JAX/jit
+hess_nll = jit(hessian(nll))
+
+# BFGS optimization function using JAX, with JAX gradient function
+@jit
+def optimise_bfgs_jax(X, y, beta_init):
+  start_time = time.time()
+  result = jopt.minimize(
+    fun=lambda beta: nll(beta, X, y), 
+    x0=beta_init, 
+    method='BFGS', 
+    options={'gtol': 1e-6, 'maxiter': 100}
+  )
+  end_time = time.time()
+  return result, end_time - start_time
+
+# Initialise values/guesses for beta, same as part (b)
+np.random.seed(42)
+n = 500
+X = np.random.randn(n, 3)  
+y = np.random.randint(0, 2, n)  
+beta_init = np.random.randn(X.shape[1]) * 0.1
+X = (X - X.mean(axis=0)) / X.std(axis=0)
+
+# Run "normal" scipy optimisation (with timing)
+start_time = time.time()
+result_bfgs = optimise_bfgs(X, y, beta_init)
+scipy_time = time.time() - start_time
+beta_bfgs = result_bfgs.x
+hess_inv_bfgs = result_bfgs.hess_inv
+
+# Run BFGS optimisation using JAX
+result_bfgs_jax, jax_time = optimise_bfgs_jax(X, y, beta_init)
+beta_bfgs_jax = result_bfgs_jax.x
+hess_inv_bfgs_jax = np.linalg.inv(hess_nll(beta_bfgs_jax, X, y))
+
+# Compute and compare scipy vs JAX standard errors
+scipy_stderr = est_std_err(hess_inv_bfgs)
+jax_stderr = est_std_err(hess_inv_bfgs_jax)
+
+# Print results
+print(f"BFGS (Scipy) estimated betas: {beta_bfgs}")
+print(f"BFGS (Scipy) iterations:      {result_bfgs.nit}")
+print(f"Time taken: {scipy_time:.4f} seconds\n")
+
+print(f"BFGS (JAX) estimated betas:   {beta_bfgs_jax}")
+print(f"BFGS (JAX) iterations:        {result_bfgs_jax.nit}")
+print(f"Time taken: {jax_time:.4f} seconds\n")
+
+# Print standard errors
+print(f"JAX std errs:   {jax_stderr}")
+print(f"Scipy std errs: {scipy_stderr}")
+```
+
+The results confirm that the JAX AD calculations are getting the same result as the "normal" scipy results without the gradient function in part (b). There are some minor differences in precision, but this can be attributed to how JAX and Scipy each implement their floating-point operations. 
+
+The number of iterations is the same for both methods (since they're using the same BFGS algorithm), but the JAX AD is able to converge much faster due to the more efficient jitted compilation. Furthermore, JAX takes advantage of the gradient function, thus avoiding the overhead that would affect "standard" numerical differentiation. 
+
+The results from the JAX Hessian function agree largely with the values from part (b), confirming the accuracy of JAX AD method and showing that AD can be a good (and quicker!) alternative to standard numerical approaches in optimisation.
