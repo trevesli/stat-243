@@ -16,6 +16,10 @@ def is_log_concave(f, x_range, eps=1e-10):
     # Convert x_range to a numpy array
     x = np.asarray(x_range)
 
+    # Ensure no duplicates in range (for numerical differentiation)
+    if np.any(np.diff(x) <= 0):
+        raise ValueError("x_range need to be increasing.")
+
     # Evaluate the function over the range
     f_values = f(x)
     
