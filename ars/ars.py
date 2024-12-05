@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats as stats
 
-def is_log_concave(f, x_range):
+def is_log_concave(f, x_range, eps=1e-10):
     """
     Check if the function f is log-concave over the x_range.
     
@@ -12,14 +12,24 @@ def is_log_concave(f, x_range):
     Returns: 
         bool: Whether the function f is concave or not.
     """
+
+    # Convert x_range to a numpy array
     x = np.asarray(x_range)
+
+    # Evaluate the function over the range
     f_values = f(x)
     
+    # Check for non-positive values in the function
     if np.any(f_values <= 0):
         raise ValueError("Function values must be positive.")
+
+    # Prevent underflow (and division by zero)
+    f_values = np.maximum(f_values, eps)
     
     f_prime = np.gradient(f_values, x)
     log_deriv = f_prime / f_values
+
+    # Check if first derivative of log density is decreasing
     is_descending = np.all(np.diff(log_deriv) <= 0)
     
     return is_descending
