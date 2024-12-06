@@ -200,7 +200,14 @@ def construct_envelope(hull_points, h, domain):
     return pieces, z_points
 
 def sample_piecewise_linear(pieces, z_points):
+    # Input checks
+    if len(pieces) + 1 != len(z_points):
+        raise ValueError("Length of `z_points` should be length of `pieces` + 1")
+    if any(z_points[i] >= z_points[i + 1] for i in range(len(z_points) - 1)):
+        raise ValueError("`z_points` needs to strict increasing")
+
     areas, cumulative_areas = [], [0]
+    
     for i, (slope, intercept) in enumerate(pieces):
         x_start, x_end = z_points[i], z_points[i + 1]
         if slope == 0:
