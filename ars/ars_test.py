@@ -181,3 +181,18 @@ def test_sampling_distribution():
     bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
     true_density = np.exp(-0.5 * bin_centers**2)
     assert np.allclose(hist, true_density, atol=0.05)  # Allow for stochastic variability
+
+def test_sample_piecewise_linear():
+    # Simple linear case
+    pieces = [(1, 0), (0, 1)]  # Linear and constant
+    z_points = [0, 1, 2]
+    samples = [sample_piecewise_linear(pieces, z_points) for _ in range(1000)]
+    
+    # Test range of outputs
+    assert all(0 <= s <= 2 for s in samples)
+    
+    # Test invalid inputs
+    with pytest.raises(ValueError):
+        sample_piecewise_linear([(1, 0)], [0, 1, 2])  # Mismatch
+    with pytest.raises(ValueError):
+        sample_piecewise_linear([(1, 0)], [0, 1, 1])  # Non-increasing
