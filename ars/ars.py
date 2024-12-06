@@ -247,9 +247,39 @@ def calculate_envelope(x, pieces, z_points):
             slope, intercept = pieces[i]
             return intercept + slope * x
 
+
+"""  Superseded with version below, that updates envelope incrementally
 def update_envelope(hull_points, new_point, h, domain):
     hull_points = np.sort(np.append(hull_points, new_point))
     return construct_envelope(hull_points, h, domain)
+"""
+
+def update_envelope(hull_points, new_point, h, slopes, intercepts, z_points):
+    """Incrementally update the envelope when a new point is added."""
+    # Insert new point into sorted hull
+    hull_points = np.sort(np.append(hull_points, new_point))
+    idx = np.where(hull_points == new_point)[0][0]
+
+    # Compute h values at new point
+    h_values = h(hull_points)
+
+    # Update slopes and intercepts for affected segments
+    if idx > 0:
+        slopes[idx - 1] = (h_values[idx] - h_values[idx - 1]) / (hull_points[idx] - hull_points[idx - 1])
+        intercepts[idx - 1] = h_values[idx - 1] - hull_points[idx - 1] * slopes[idx - 1]
+
+    if idx < len(hull_points) - 1:
+        slopes.insert(idx, (h_values[idx + 1] - h_values[idx]) / (hull_points[idx + 1] - hull_points[idx]))
+        intercepts.insert(idx, h_values[idx] - hull_points[idx] * slopes[idx])
+
+    # Update z_points for new intersections
+    if idx > 0:
+        z_points[idx] = (intercepts[idx - 1] - intercepts[idx]) / (slopes[idx] - slopes[idx - 1])
+
+    if idx < len(hull_points) - 2:
+        z_points.insert(idx + 1, (intercepts[idx] - intercepts[idx + 1]) / (slopes[idx + 1] - slopes[idx]))
+
+    return hull_points, slopes, intercepts, z_points
 
 def initialize_points(f, domain, num_points=3):
     """Intelligently initialize starting points based on the target function."""
@@ -282,6 +312,7 @@ def ars(f, num_samples, domain=(-10, 10), burn_in=10, num_init_points=3):
     x_points = initialize_points(f, domain, num_points=num_init_points)
     samples = []
     pieces, z_points = construct_envelope(x_points, h, domain)
+    slopes, intercepts = zip(*pieces)
 
     for i in range(num_samples + burn_in):
         # Sample from the envelope
@@ -296,9 +327,11 @@ def ars(f, num_samples, domain=(-10, 10), burn_in=10, num_init_points=3):
                 samples.append(x_star)
         else:
             print(f"DEBUG: Rejected x_star={x_star}")
-            # Update the envelope with the new point
-            pieces, z_points = update_envelope(x_points, x_star, h, domain)
-            x_points = np.sort(np.append(x_points, x_star))
+            # Incrementally update the envelope with the new point
+            x_points, slopes, intercepts, z_points = update_envelope(
+                x_points, x_star, h, list(slopes), list(intercepts), list(z_points)
+            )
+            pieces = list(zip(slopes, intercepts))
 
     print(f"DEBUG: Finished sampling. Total samples collected: {len(samples)}")
     return np.array(samples)
