@@ -160,6 +160,14 @@ def h_log(f, x):
 
 h_log.cache = {}
 
+h_cache = {}
+
+def h_cached(x):
+    """Cache h values to avoid recomputing for same x values"""
+    if x not in h_cache:
+        h_cache[x] = h(x)
+    return h_cache[x]
+
 def is_log_concave(f, x_range, eps=1e-10):
     """Checks if a function is log-concave over the given range."""
     x = np.asarray(x_range)
@@ -282,7 +290,7 @@ def ars(f, num_samples, domain=(-10, 10), burn_in=10, num_init_points=3):
         print(f"DEBUG: Iteration {i}, x_star={x_star}, u={u}")
 
         # Check acceptance criteria
-        if u <= np.exp(h(x_star) - calculate_envelope(x_star, pieces, z_points)):
+        if u <= np.exp(h_cached(x_star) - calculate_envelope(x_star, pieces, z_points)):
             print(f"DEBUG: Accepted x_star={x_star}")
             if i >= burn_in:  # Only append after burn-in
                 samples.append(x_star)
