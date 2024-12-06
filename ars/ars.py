@@ -163,16 +163,19 @@ h_log.cache = {}
 def is_log_concave(f, x_range, eps=1e-10):
     """Checks if a function is log-concave over the given range."""
     x = np.asarray(x_range)
-    # Ensure no duplicates in range (for numerical differentiation)
-    if np.any(np.diff(x) <= 0):
+    
+    if np.any(np.diff(x) <= 0): # Ensure no duplicates in range (for numerical differentiation)
         raise ValueError("x_range need to be increasing.")
+    
     f_values = f(x)
     if np.any(f_values <= 0):
         raise ValueError("Function values must be positive.")
+    
     f_values = np.maximum(f_values, eps)
     f_prime = np.gradient(f_values, x)
     log_deriv = f_prime / f_values
     is_descending = np.all(np.diff(log_deriv) <= 0)
+    
     return is_descending
 
 def construct_envelope(hull_points, h, domain):
@@ -203,9 +206,10 @@ def sample_piecewise_linear(pieces, z_points):
         if slope == 0:
             area = np.exp(intercept) * (x_end - x_start)
         else:
-            exp_start = np.exp(np.clip(intercept + slope * x_start, -700, 700))  # Clip for overflow protection
-            exp_end = np.exp(np.clip(intercept + slope * x_end, -700, 700))
-            area = (exp_end - exp_start) / slope
+            # Overflow protection
+            log_start = intercept + slope * x_start
+            log_end = intercept + slope * x_end
+            area = (np.exp(log_end) - np.exp(log_start)) / slope
         areas.append(area)
         cumulative_areas.append(cumulative_areas[-1] + area)
 
