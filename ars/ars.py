@@ -141,6 +141,15 @@
 import numpy as np
 import scipy.stats as stats
 
+def check_overflow_underflow(values, dtype=np.float64):
+    """Checks if values are at risk of overflow/underflow, and clip them."""
+    min_value = np.finfo(dtype).tiny  # Smallest positive number representable in the dtype
+    max_value = np.finfo(dtype).max   # Largest number representable in the dtype
+    
+    values = np.clip(values, min_value, max_value)
+
+    return values
+
 def h_log(f, x):
     """Manual caching for log of the target function with underflow protection."""
     if isinstance(x, np.ndarray):
@@ -150,6 +159,7 @@ def h_log(f, x):
 
     if x_key not in h_log.cache:
         f_value = f(x)
+        f_value = check_overflow_underflow(f_value)
         if isinstance(f_value, np.ndarray):
             f_value = np.maximum(f_value, np.finfo(float).eps)  # Prevent underflow for arrays
         else:
@@ -224,6 +234,7 @@ def sample_piecewise_linear(pieces, z_points):
             # Overflow protection
             log_start = intercept + slope * x_start
             log_end = intercept + slope * x_end
+            log_start, log_end = check_overflow_underflow([log_start, log_end])
             area = (np.exp(log_end) - np.exp(log_start)) / slope
         areas.append(area)
         cumulative_areas.append(cumulative_areas[-1] + area)
