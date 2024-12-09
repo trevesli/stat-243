@@ -1,5 +1,10 @@
 # ars/__init__.py
 
-from .sampler import ars
-from .utils import is_log_concave, calculate_envelope, update_envelope
-from .validation import validate_function
+# Core sampling functions
+from .sampler import ars, construct_envelope, sample_piecewise_linear, calculate_envelope, update_envelope
+
+# Utility functions
+from .utils import h_log
+
+# Validation functions
+from .validation import is_log_concave
