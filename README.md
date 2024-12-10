@@ -1,2 +1,7 @@
 # ars-dev
-For the project for the course STAT-243
+Adaptive Rejection Sampling for STAT 243 Final Project at UC Berkeley, Fall 2024.
+
+## Installation
+
+```bash
+pip install .
