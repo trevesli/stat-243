@@ -98,16 +98,71 @@ def update_envelope(hull_points, new_point, h, slopes, intercepts, z_points):
 
     return hull_points, slopes, intercepts, z_points
 
-def initialize_points(f, domain, num_points=3):
-    """Intelligently initialize starting points based on the target function."""
-    x = np.linspace(domain[0], domain[1], num_points * 10)  # Use a dense grid for initialization
-    f_values = f(x)
-    sorted_indices = np.argsort(f_values)[::-1]  # Sort by PDF values, descending
-    initial_points = x[sorted_indices[:num_points]]  # Choose the top `num_points` values
-    print(f"DEBUG: Initializing points: {initial_points}")
-    return initial_points
+def adaptive_search_domain(f, start=0, step=1, threshold=1e-15, max_steps=int(1e7)):
+    """
+    Search the domain of the given function.
+    
+    Args:
+    - f(function): Given function we want to search for domain of. 
+    - start(float): Starting searching point.
+    - step(float): Searching step.
+    - threshold(float): Threshold to judge whether the function value is too small
+    - max_steps(int): maximum searching steps.
+    
+    Returns:
+    - domain_start, domain_end(float): The searching domain of the function.
+    """
+    
+    x = start
+    domain_points = []
+    
+    # Searching towards the positive side
+    for _ in range(max_steps):
+        if f(x) > threshold:
+            domain_points.append(x)
+        x += step
+    
+    x = start
+    
+    # Searching towards the negative side
+    for _ in range(max_steps):
+        if f(x) > threshold:
+            domain_points.append(x)
+        else:
+            break
+        x -= step
+    
+    if not domain_points:
+        return None
+    return min(domain_points), max(domain_points)
 
-def ars(f, num_samples, domain=(-10, 10), burn_in=10, num_init_points=3):
+def init_points(f, domain, threshold = 1e-5):
+    """
+    Search the initial point of the .
+    
+    Args:
+    - f(function): Given function. 
+    - domain(tuple): domain of the function.
+    - threshold(float): Threshold to judge whether to be the initial point.
+    
+    Returns:
+    - init_1, init_2(tuple): Two initial points.
+    """
+    
+    domain_min, domain_max = adaptive_search_domain(f)
+    step = (domain_max - domain_min) / 1000
+    
+    init_1 = domain_min
+    while f(init_1) <= threshold:
+        init_1 += step
+    
+    init_2 = domain_max
+    while f(init_2) <= threshold:
+        init_2 -= step
+        
+    return init_1, init_2
+
+def ars(f, num_samples, domain, burn_in=1000, num_init_points=10):
     """
     Adaptive Rejection Sampling with intelligent initialization and overflow protection.
 
@@ -126,7 +181,11 @@ def ars(f, num_samples, domain=(-10, 10), burn_in=10, num_init_points=3):
         raise ValueError("The input function is not log-concave!")
 
     h = lambda x: h_log(f, x)
-    x_points = initialize_points(f, domain, num_points=num_init_points)
+    
+    domain = adaptive_search_domain(f)
+    init_1, init_2 = init_points(f, domain)
+    x_points = np.linspace(init_1, init_2, num_init_points)
+    
     samples = []
     pieces, z_points = construct_envelope(x_points, h, domain)
     slopes, intercepts = zip(*pieces)
