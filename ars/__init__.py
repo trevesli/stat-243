@@ -1,5 +1,8 @@
 # ars/__init__.py
 
+# Define package interface
+from .ars import ars
+
 # Core sampling functions
 from .sampler import ars, construct_envelope, sample_piecewise_linear, calculate_envelope, update_envelope
 
