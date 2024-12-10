@@ -1,0 +1,13 @@
+# Byte-compiled files
+__pycache__
+
+# Virtual Environment
+venv/
+.env/
+.Python
+
+# Logs and Debug Files
+*.log
+*.txt
+*.out
+*.err
