@@ -25,10 +25,8 @@ def construct_envelope(hull_points, h, domain):
 
 def sample_piecewise_linear(pieces, z_points):
     # Input checks
-    if len(pieces) + 1 != len(z_points):
-        raise ValueError("Length of `z_points` should be length of `pieces` + 1")
-    if any(z_points[i] >= z_points[i + 1] for i in range(len(z_points) - 1)):
-        raise ValueError("`z_points` needs to strict increasing")
+    if len(z_points) != len(pieces) + 1:
+        raise ValueError(f"Length of `z_points` ({len(z_points)}) should be length of `pieces` ({len(pieces)}) + 1")
 
     areas, cumulative_areas = [], [0]
     
@@ -59,10 +57,7 @@ def sample_piecewise_linear(pieces, z_points):
         return (np.log(cdf_sample * slope) - intercept) / slope
 
 def calculate_envelope(x, pieces, z_points):
-    # Ensure x is within the range of z_points
-    if x < z_points[0] or x > z_points[-1]:
-        raise ValueError(f"x={x} is out of the envelope bounds ({z_points[0]} to {z_points[-1]})")
-
+    
     for i in range(len(pieces)):
         if z_points[i] <= x <= z_points[i + 1]:
             slope, intercept = pieces[i]
@@ -75,33 +70,27 @@ def update_envelope(hull_points, new_point, h, domain):
     return construct_envelope(hull_points, h, domain)
 """
 
-def update_envelope(hull_points, new_point, h, slopes, intercepts, z_points):
-    """Incrementally update the envelope when a new point is added."""
-    
-    # Insert new point into sorted hull
-    hull_points = np.sort(np.append(hull_points, new_point))
-    idx = np.where(hull_points == new_point)[0][0]
+def update_envelope(x_points, new_point, h, slopes, intercepts, z_points, domain):
+    # Insert the new point into the sorted list of x_points
+    x_points = np.sort(np.append(x_points, new_point))
 
-    # Compute h values at new point
-    h_values = h(hull_points)
+    # Update slopes and intercepts based on the new point
+    slopes = []
+    intercepts = []
+    for idx in range(1, len(x_points)):
+        slopes.append((h(x_points[idx]) - h(x_points[idx - 1])) / (x_points[idx] - x_points[idx - 1]))
+        intercepts.append(h(x_points[idx]) - slopes[-1] * x_points[idx])
 
-    # Update slopes and intercepts for affected segments
-    if idx > 0:
-        slopes[idx - 1] = (h_values[idx] - h_values[idx - 1]) / (hull_points[idx] - hull_points[idx - 1])
-        intercepts[idx - 1] = h_values[idx - 1] - hull_points[idx - 1] * slopes[idx - 1]
+    # Update z_points to reflect the new x_points and corresponding function values
+    z_points = np.array([h(x) for x in x_points])  # This ensures z_points has length len(x_points)
 
-    if idx < len(hull_points) - 1:
-        slopes.insert(idx, (h_values[idx + 1] - h_values[idx]) / (hull_points[idx + 1] - hull_points[idx]))
-        intercepts.insert(idx, h_values[idx] - hull_points[idx] * slopes[idx])
+    # Ensure the lengths of pieces and z_points are aligned
+    pieces = list(zip(slopes, intercepts))
 
-    # Update z_points for new intersections
-    if idx > 0:
-        z_points[idx] = (intercepts[idx - 1] - intercepts[idx]) / (slopes[idx] - slopes[idx - 1])
+    # Print debug info for checking
+    print(f"DEBUG: Updated Envelope - z_points length: {len(z_points)}, pieces length: {len(pieces)}")
 
-    if idx < len(hull_points) - 2:
-        z_points.insert(idx + 1, (intercepts[idx] - intercepts[idx + 1]) / (slopes[idx + 1] - slopes[idx]))
-            
-    return hull_points, np.array(slopes), np.array(intercepts), np.array(z_points)
+    return x_points, slopes, intercepts, z_points
     
 def adaptive_search_domain(f, start=0, step=1, threshold=1e-15, max_steps=int(1e7)):
     """
@@ -209,9 +198,13 @@ def ars(f, num_samples, domain, burn_in=1000, num_init_points=10):
                 samples.append(x_star)
         else:
             print(f"DEBUG: Rejected x_star={x_star}")
+            slopes = list(slopes)  # Convert slopes to list (if tuple)
+            intercepts = list(intercepts)  # Convert intercepts to list (if tuple)
+            z_points = list(z_points)
+
             # Incrementally update the envelope with the new point
             x_points, slopes, intercepts, z_points = update_envelope(
-                x_points, x_star, h, list(slopes), list(intercepts), list(z_points)
+                x_points, x_star, h, slopes, intercepts, z_points, domain
             )
             pieces = list(zip(slopes, intercepts))
 
