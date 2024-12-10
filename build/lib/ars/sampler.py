@@ -59,7 +59,10 @@ def sample_piecewise_linear(pieces, z_points):
         return (np.log(cdf_sample * slope) - intercept) / slope
 
 def calculate_envelope(x, pieces, z_points):
-    
+    # Ensure x is within the range of z_points
+    if x < z_points[0] or x > z_points[-1]:
+        raise ValueError(f"x={x} is out of the envelope bounds ({z_points[0]} to {z_points[-1]})")
+
     for i in range(len(pieces)):
         if z_points[i] <= x <= z_points[i + 1]:
             slope, intercept = pieces[i]
