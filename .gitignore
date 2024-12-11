@@ -1,5 +1,5 @@
 # Python-related metadata
-__pycache__
+__pycache__/
 .egg-info/
 .ipynb_checkpoints
 .pytest_cache
@@ -14,3 +14,6 @@ venv/
 *.txt
 *.out
 *.err
+
+# Build artifacts
+build/
