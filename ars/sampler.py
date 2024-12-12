@@ -3,10 +3,26 @@ from .utils import check_overflow_underflow, h_log, h_cached
 from .validation import is_log_concave
 
 def construct_envelope(hull_points, h, domain):
+    """
+    Construct the envelope function (upper bound) from hull points.
+    
+    Args:
+        hull_points(array-like): x-values where tangents are constructed.
+        h: the log of sampling function.
+        domain(tuple): (x_min, x_max), the domain boundaries of the distribution.
+    
+    Returns:
+        pieces(list of tuples): List of (slope, intercept) for each segment.
+        z_points(array_like): Start and end points of each segment.
+    """
+    
+    if len(hull_points) < 3:
+        raise ValueError("There must be at least 3 hull points.")
+    
     x_min, x_max = domain
     h_values = h(hull_points)
 
-    slopes = np.gradient(h_values, hull_points)
+    slopes = [(h(x+1e-5)-h(x-1e-5))/2e-5 for x in hull_points]
     intercepts = h_values - hull_points * slopes
 
     z_points = [x_min]
@@ -23,7 +39,175 @@ def construct_envelope(hull_points, h, domain):
     pieces = [(float(slopes[i]), float(intercepts[i])) for i in range(len(slopes))]
     return pieces, z_points
 
+def construct_squeezing(hull_points, h, domain):
+    """
+    Construct the squeezing function (lower bound) from hull points.
+    
+    Args:
+        hull_points(array-like): x-values where chords are constructed.
+        h: the log of sampling function.
+        domain(tuple): (x_min, x_max), the domain boundaries of the distribution.
+    
+    Returns:
+        pieces(list of tuples): List of (slope, intercept) for each segment.
+        z_points(array_like): Start and end points of each segment.
+    """
+    if len(hull_points) < 3:
+        raise ValueError("There must be at least 3 hull points.")
+    
+    x_min, x_max = domain
+    pieces = []
+    z_points = [x_min, hull_points[0]]
+    
+    if x_min == -np.inf:
+        pieces.append((0, -np.inf))
+    else:
+        x1, x2 = x_min, hull_points[0]
+        slope = (h(x2)-h(x1))/ (x2 - x1)
+        intercept = h(x1) - slope * x1
+        pieces.append((slope, intercept))
+    
+    for i in range(len(hull_points)-1):
+        x1, x2 = hull_points[i], hull_points[i+1]
+        slope = (h(x2)-h(x1))/ (x2 - x1)
+        intercept = h(x1) - slope * x1
+        pieces.append((slope, intercept))
+        z_points.append(x2)
+    
+    if x_max == np.inf:
+        pieces.append((0, -np.inf))
+    else:
+        x1, x2 = hull_points[-1], x_max
+        slope = (h(x2)-h(x1))/ (x2 - x1)
+        intercept = h(x1) - slope * x1
+        pieces.append((slope, intercept))
+        
+    z_points.append(x_max)
+    
+    return pieces, z_points
+
+def calculate_piecewise_linear(x, pieces, z_points):
+    """
+    Calculate the value on x for a piecewise linear function.
+    
+    Args:
+        x(float): the point we want to calculate.
+        pieces(list of tuples): List of (slope, intercept) for each segment.
+        z_points(array_like): Start and end points of each segment.
+    
+    Returns:
+        (float): value of the squeezing function at x.
+    """
+    
+    for i in range(len(pieces)):
+        if x > z_points[i] and x <= z_points[i + 1]:
+            slope, intercept = pieces[i]
+            return intercept + slope * x
+
+def update_envelope(h, orig_x_points, orig_pieces, orig_z_points, new_point):
+    """
+    Add a new point to the update the envelope function.
+    
+    Args:
+        h(function): the log of sampling function f.
+        orig_x_points(List): List of the original hull points.
+        orig_pieces(list): List of tuples (slope, intercept) representing line segments.
+        orig_z_points(list): List of the start and end of each piece.
+        new_point(float): new point need to be added to be a new hull point.
+        
+    Returns:
+        new_pieces(list of tuples): List of (slope, intercept) for each segment.
+        new_z_points(array_like): Start and end points of each segment.
+    """
+    domain_min, domain_max = orig_z_points[0], orig_z_points[-1]
+    if new_point <= domain_min or new_point >= domain_max:
+        raise ValueError(f"New point is out of the domain of the function.")
+    
+    new_slope = (h(new_point+1e-5) - h(new_point-1e-5))/2e-5
+    new_intercept = h(new_point) - new_point * new_slope
+    if domain_min < new_point <= orig_x_points[0]:
+        if new_point == orig_x_points[0]:
+            print("New points already in the hull points.")
+            return orig_pieces, orig_z_points
+        ## calculate new z point
+        slope, intercept = orig_pieces[0]
+        z =  -(intercept - new_intercept) / (slope - new_slope)
+        orig_z_points.insert(1, z)
+        ## insert new piece
+        orig_pieces.insert(0, (new_slope, new_intercept))
+        return orig_pieces, orig_z_points
+    
+    for i in range(len(orig_x_points)-1):
+        if orig_x_points[i] < new_point <= orig_x_points[i+1]:
+            if new_point == orig_x_points[i+1]:
+                print("New points already in the hull points.")
+                return orig_pieces, orig_z_points
+
+            ## calculate new z_points
+            slope1, intercept1 = orig_pieces[i]
+            slope2, intercept2 = orig_pieces[i+1]
+            z1 = -(intercept1 - new_intercept) / (slope1 - new_slope)
+            z2 = -(intercept2 - new_intercept) / (slope2 - new_slope)
+            orig_z_points[i+1] = z2
+            orig_z_points.insert(i+1, z1)
+            ## insert new piece
+            orig_pieces.insert(i+1, (new_slope, new_intercept))
+            return orig_pieces, orig_z_points
+    
+    if orig_x_points[-1] < new_point < domain_max:
+        ## calculate new z point
+        slope, intercept = orig_pieces[0]
+        z = -(intercept - new_intercept) / (slope - new_slope)
+        orig_z_points.insert(-1, z)
+        ## insert new piece
+        orig_pieces.append((new_slope, new_intercept))
+        return orig_pieces, orig_z_points
+
+def update_squeezing(h, orig_pieces, orig_z_points, new_point):
+    """
+    Add a new point to the update the squeezing function.
+    
+    Args:
+        h(function): the log of sampling function f.
+        orig_pieces(list): List of tuples (slope, intercept) representing line segments.
+        orig_z_points(list): List of the start and end of each piece.
+        new_point(float): new point need to be added to be a new hull point.
+        
+    Returns:
+        new_pieces(list of tuples): List of (slope, intercept) for each segment.
+        new_z_points(array_like): Start and end points of each segment.
+    """
+    domain_min, domain_max = orig_z_points[0], orig_z_points[-1]
+    if new_point <= domain_min or new_point >= domain_max:
+        raise ValueError(f"New point is out of the domain of the function.")
+    
+    for i in range(len(orig_z_points)-1):
+        if orig_z_points[i] < new_point <= orig_z_points[i+1]:
+            if new_point == orig_z_points[i+1]:
+                print("New points already in the hull points.")
+                return orig_pieces, orig_z_points
+            ## insert new piece
+            slope1 = (h(new_point) - h(orig_z_points[i]))/(new_point - orig_z_points[i])
+            intercept1 = h(new_point) - slope1 * new_point
+            slope2 = (h(new_point) - h(orig_z_points[i+1]))/(new_point - orig_z_points[i+1])
+            intercept2 = h(new_point) - slope2 * new_point
+            orig_pieces[i] = (slope1, intercept1)
+            orig_pieces.insert(i+1, (slope2, intercept2))
+            ## insert new z point
+            orig_z_points.insert(i+1, new_point)
+            return orig_pieces, orig_z_points
+
 def sample_piecewise_linear(pieces, z_points):
+    """
+    Sample from the exponential of a piecewise linear function.
+    
+    Args:
+        pieces: List of tuples (slope, intercept) representing line segments.
+        z_points: List of the start and end of each piece.
+    
+    Returns:
+        A sampled point from the exponential of piecewise linear function.
+    """
     # Input checks
     if len(z_points) != len(pieces) + 1:
         raise ValueError(f"Length of `z_points` ({len(z_points)}) should be length of `pieces` ({len(pieces)}) + 1")
@@ -35,16 +219,17 @@ def sample_piecewise_linear(pieces, z_points):
         if slope == 0:
             area = np.exp(intercept) * (x_end - x_start)
         else:
-            # Overflow protection
             log_start = intercept + slope * x_start
             log_end = intercept + slope * x_end
-            log_start, log_end = check_overflow_underflow([log_start, log_end])
             area = (np.exp(log_end) - np.exp(log_start)) / slope
         areas.append(area)
         cumulative_areas.append(cumulative_areas[-1] + area)
 
     total_area = cumulative_areas[-1]
+    
+    # Sample a uniform random value in [0, total_area] to pick a segment
     u = np.random.uniform(0, total_area)
+    # Find the segment corresponding to the sampled area
     segment = np.searchsorted(cumulative_areas, u) - 1
     slope, intercept = pieces[segment]
     x_start, x_end = z_points[segment], z_points[segment + 1]
@@ -55,44 +240,8 @@ def sample_piecewise_linear(pieces, z_points):
         cdf_start = np.exp(np.clip(intercept + slope * x_start, -700, 700)) / slope
         cdf_sample = cdf_start + u - cumulative_areas[segment]
         return (np.log(cdf_sample * slope) - intercept) / slope
-
-def calculate_envelope(x, pieces, z_points):
     
-    for i in range(len(pieces)):
-        if z_points[i] <= x <= z_points[i + 1]:
-            slope, intercept = pieces[i]
-            return intercept + slope * x
-
-
-"""Superseded with version below, that updates envelope incrementally
-def update_envelope(hull_points, new_point, h, domain):
-    hull_points = np.sort(np.append(hull_points, new_point))
-    return construct_envelope(hull_points, h, domain)
-"""
-
-def update_envelope(x_points, new_point, h, slopes, intercepts, z_points, domain):
-    # Insert the new point into the sorted list of x_points
-    x_points = np.sort(np.append(x_points, new_point))
-
-    # Update slopes and intercepts based on the new point
-    slopes = []
-    intercepts = []
-    for idx in range(1, len(x_points)):
-        slopes.append((h(x_points[idx]) - h(x_points[idx - 1])) / (x_points[idx] - x_points[idx - 1]))
-        intercepts.append(h(x_points[idx]) - slopes[-1] * x_points[idx])
-
-    # Update z_points to reflect the new x_points and corresponding function values
-    z_points = np.array([h(x) for x in x_points])  # This ensures z_points has length len(x_points)
-
-    # Ensure the lengths of pieces and z_points are aligned
-    pieces = list(zip(slopes, intercepts))
-
-    # Print debug info for checking
-    print(f"DEBUG: Updated Envelope - z_points length: {len(z_points)}, pieces length: {len(pieces)}")
-
-    return x_points, slopes, intercepts, z_points
-    
-def adaptive_search_domain(f, start=0, step=1, threshold=1e-15, max_steps=int(1e7)):
+def adaptive_search_domain(f, start=0, step=0.1, threshold=1e-15, max_steps=int(1e6)):
     """
     Search the domain of the given function.
     
@@ -100,7 +249,7 @@ def adaptive_search_domain(f, start=0, step=1, threshold=1e-15, max_steps=int(1e
     - f(function): Given function we want to search for domain of. 
     - start(float): Starting searching point.
     - step(float): Searching step.
-    - threshold(float): Threshold to judge whether the function value is too small
+    - threshold(float): Threshold to judge whether the function value is too small.
     - max_steps(int): maximum searching steps.
     
     Returns:
@@ -127,7 +276,7 @@ def adaptive_search_domain(f, start=0, step=1, threshold=1e-15, max_steps=int(1e
         x -= step
     
     if not domain_points:
-        return None
+        raise ValueError("Cannot find the domain in the region, please check your function or change the argument                                 threshold, step or max_steps.")
     return min(domain_points), max(domain_points)
 
 def init_points(f, domain, threshold = 1e-5):
@@ -143,7 +292,7 @@ def init_points(f, domain, threshold = 1e-5):
     - init_1, init_2(tuple): Two initial points.
     """
     
-    domain_min, domain_max = adaptive_search_domain(f)
+    domain_min, domain_max = domain
     step = (domain_max - domain_min) / 1000
     
     init_1 = domain_min
@@ -154,9 +303,9 @@ def init_points(f, domain, threshold = 1e-5):
     while f(init_2) <= threshold:
         init_2 -= step
         
-    return init_1, init_2
+    return init_1, init_2 
 
-def ars(f, num_samples, domain, burn_in=1000, num_init_points=10):
+def ars(f, num_samples, domain = (-np.inf, np.inf), domain_threshold = 1e-15, domain_step = 0.1, max_step = int(1e6),           burn_in=1000, init_threshold = 1e-5 ,num_init_points=10):
     """
     Adaptive Rejection Sampling with intelligent initialization and overflow protection.
 
@@ -164,49 +313,57 @@ def ars(f, num_samples, domain, burn_in=1000, num_init_points=10):
         f (function): Target probability density function.
         num_samples (int): Number of samples to generate.
         domain (tuple): Range of the distribution.
+        domian_threshold(float): Threshold to judge whether the function value is too small.
+        domain_step(float): step size in adaptive domain search.
+        max_step(int): max step in adaptive domain search
         burn_in (int): Number of initial samples to discard.
-        num_init_points (int): Number of initial points for constructing envelope.
+        init_threshold(float): threshold to find the initial points
+        num_init_points (int): Number of initial points for constructing envelope( must be >=3).
 
     Returns:
         np.array: Array of sampled points.
     """
+    
     print("Starting ARS ...")
+    print("Searching for the domain ...")
+    if domain == (-np.inf, np.inf):
+        domain = adaptive_search_domain(f, threshold = domain_threshold)
+    
     print("Checking if the function is log-concave ...")
     if not is_log_concave(f, np.linspace(*domain, 1000)):
         raise ValueError("The input function is not log-concave!")
 
     h = lambda x: h_log(f, x)
     
-    domain = adaptive_search_domain(f)
-    init_1, init_2 = init_points(f, domain)
+    init_1, init_2 = init_points(f, domain, threshold = init_threshold)
     x_points = np.linspace(init_1, init_2, num_init_points)
-    
     samples = []
-    pieces, z_points = construct_envelope(x_points, h, domain)
-    slopes, intercepts = zip(*pieces)
+    envelope_pieces, envelope_points = construct_envelope(x_points, h, domain)
+    squeezing_pieces, squeezing_points = construct_squeezing(x_points, h, domain)
 
-    for i in range(num_samples + burn_in):
+    while len(samples) <= (num_samples + burn_in-1):
         # Sample from the envelope
-        x_star = sample_piecewise_linear(pieces, z_points)
+        x_star = sample_piecewise_linear(envelope_pieces, envelope_points)
         u = np.random.uniform()
-        print(f"DEBUG: Iteration {i}, x_star={x_star}, u={u}")
 
         # Check acceptance criteria
-        if u <= np.exp(h_cached(f, x_star) - calculate_envelope(x_star, pieces, z_points)):
-            print(f"DEBUG:      Accepted x_star={x_star}")
-            if i >= burn_in:  # Only append after burn-in
-                samples.append(x_star)
+        if u <= np.exp(calculate_piecewise_linear(x_star, squeezing_pieces, squeezing_points) -               calculate_piecewise_linear(x_star, envelope_pieces, envelope_points)):  # Check lower bound
+            samples.append(x_star)
+            
+        elif u <= np.exp(h(x_star) - calculate_piecewise_linear(x_star, envelope_pieces, envelope_points)):
+            samples.append(x_star)
+            envelope_pieces, envelope_points = update_envelope(h, x_points, envelope_pieces, envelope_points, x_star)
+            squeezing_pieces, squeezing_points = update_squeezing(h, squeezing_pieces, squeezing_points, x_star)
+            x_points = np.sort(np.append(x_points, x_star))
         else:
-            print(f"DEBUG: Rejected x_star={x_star}")
-            slopes = list(slopes)  # Convert slopes to list (if tuple)
-            intercepts = list(intercepts)  # Convert intercepts to list (if tuple)
-            z_points = list(z_points)
-
-            # Incrementally update the envelope with the new point
-            x_points, slopes, intercepts, z_points = update_envelope(
-                x_points, x_star, h, slopes, intercepts, z_points, domain
-            )
-            pieces = list(zip(slopes, intercepts))
+            envelope_pieces, envelope_points = update_envelope(h, x_points, envelope_pieces, envelope_points, x_star)
+            squeezing_pieces, squeezing_points = update_squeezing(h, squeezing_pieces, squeezing_points, x_star)
+            x_points = np.sort(np.append(x_points, x_star))
+    
+    samples = samples[burn_in:]
 
     print(f"Finished sampling. Total samples collected: {len(samples)}")
     return np.array(samples)
+
+
+
