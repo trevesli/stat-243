@@ -1,6 +1,11 @@
+import os
+import sys
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../ars')))
+
 from ars.sampler import (
     ars,
     construct_envelope
@@ -112,12 +117,6 @@ def test_sampling_dist():
     hist, bin_edges = np.histogram(samples, bins=50, density=True) 
     # Compare histogram to the true (Gaussian) density 
     bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-    true_density = np.exp(-0.5 * bin_centers**2)
+    true_density = np.exp(-0.5 * bin_centers**2) / np.sqrt(2 * np.pi) # normalised
 
     assert np.allclose(hist, true_density, atol=0.05)
-
-    # Debug plot
-    #plt.plot(bin_centers, true_density, label="True Density", color="red")
-    #plt.hist(samples, bins=50, density=True, alpha=0.6, label="Sampled Distribution")
-    #plt.legend()
-    #plt.show()
