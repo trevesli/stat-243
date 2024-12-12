@@ -324,13 +324,15 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
         np.array: Array of sampled points.
     """
 
-    # Check domain is tuple
+    # Input checks
     if not isinstance(domain, tuple):
         raise TypeError("'domain' must be a tuple.")
-    
-    # Check tuple has exactly two elements
     if len(domain) != 2:
         raise ValueError("'domain' must contain exactly two elements.")
+    if not isinstance(num_samples, int) or num_samples <= 0:
+        raise ValueError("num_samples must be a positive integer")
+    if not (isinstance(domain[0], (int, float)) and isinstance(domain[1], (int, float))):
+        raise ValueError("Invalid domain: values must be numeric.")
     
     print("Starting ARS ...")
     print("Searching for the domain ...")
