@@ -386,7 +386,8 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
             squeezing_pieces, squeezing_points = update_squeezing(h, squeezing_pieces, squeezing_points, x_star)
             x_points = np.sort(np.append(x_points, x_star))
     
-    samples = samples[burn_in:]
+
+    samples = np.array(samples[burn_in:])
 
     # Output checks
     if not isinstance(samples, np.ndarray):
@@ -395,4 +396,5 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
         raise ValueError("Samples contain NaN or infinite values.")
 
     print(f"Finished sampling. Total samples collected: {len(samples)}")
-    return np.array(samples)
+    
+    return samples
