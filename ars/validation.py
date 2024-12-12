@@ -2,21 +2,22 @@ import numpy as np
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 
-def is_log_concave(f, x_range, eps=1e-10):
-    """Checks if a function is log-concave over the given range."""
+def is_log_concave(f, x_range):
+    """
+    Check if the function f is log-concave over the x_range.
+    
+    Args:
+        f(function): Probability density function (maybe unnormalized)
+        x_range(array_like): Range of x values to check
+    
+    Returns: 
+        bool: Whether the function f is concave or not.
+    """
     x = np.asarray(x_range)
-    
-    if np.any(np.diff(x) <= 0): # Ensure no duplicates in range (for numerical differentiation)
-        raise ValueError("x_range need to be increasing.")
-    
     f_values = f(x)
+    
     if np.any(f_values <= 0):
         raise ValueError("Function values must be positive.")
-    
-    f_values = np.maximum(f_values, eps)
-    #f_prime = np.gradient(f_values, x)
-    #log_deriv = f_prime / f_values
-    #is_descending = np.all(np.diff(log_deriv) <= 0)
     
     log_f_values = np.log(f_values)
     
@@ -28,6 +29,10 @@ def is_log_concave(f, x_range, eps=1e-10):
     
     return is_log_concave
 
+<<<<<<< HEAD
+
+
+=======
 def compare_samples_to_distribution(samples, target_pdf, domain, check_mean=True):
     """
     Compare ARS-generated samples to the target distribution.
@@ -124,3 +129,4 @@ def integrate_mean(pdf, domain, num_points=1000):
     except Exception as e:
         print(f"Error integrating mean: {e}")
         return None, False
+>>>>>>> f5de452ddf2181257d00d22ff653d26b09e6728e
