@@ -1,7 +1,10 @@
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
-from ars.sampler import ars
+from ars.sampler import (
+    ars,
+    construct_envelope
+)
 
 def log_concave(x):
     return np.exp(-x**2)
@@ -80,6 +83,13 @@ def test_adaptive_domain_search():
     samples = ars(log_concave, num_samples, domain)
     
     assert len(samples) == num_samples
+
+def test_construct_envelope_invalid():
+    hull_points = [1, 2]  # Less than 3 points
+    h = lambda x: np.log(x)
+    domain = (0, 10)
+    with pytest.raises(ValueError):
+        construct_envelope(hull_points, h, domain)
 
 def test_stability():
     # Gaussian with small variance
