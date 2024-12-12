@@ -29,10 +29,6 @@ def is_log_concave(f, x_range):
     
     return is_log_concave
 
-<<<<<<< HEAD
-
-
-=======
 def compare_samples_to_distribution(samples, target_pdf, domain, check_mean=True):
     """
     Compare ARS-generated samples to the target distribution.
@@ -129,4 +125,3 @@ def integrate_mean(pdf, domain, num_points=1000):
     except Exception as e:
         print(f"Error integrating mean: {e}")
         return None, False
->>>>>>> f5de452ddf2181257d00d22ff653d26b09e6728e
