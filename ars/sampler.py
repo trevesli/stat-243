@@ -333,6 +333,22 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
         raise ValueError("num_samples must be a positive integer")
     if not (isinstance(domain[0], (int, float)) and isinstance(domain[1], (int, float))):
         raise ValueError("Invalid domain: values must be numeric.")
+    if not (isinstance(domain_threshold, (int, float))) or not (domain_threshold > 0):
+        raise ValueError("'domain_threshold' must be a positive number.")
+    if not (isinstance(domain_step, (int, float))) or not (domain_step > 0):
+        raise ValueError("'domain_step' must be a positive number.")
+    if not (isinstance(init_threshold, (int, float))) or not (init_threshold > 0):
+        raise ValueError("'init_threshold' must be a positive number.")
+    if not isinstance(max_step, int) or max_step <= 0:
+        raise ValueError("'max_step' must be a positive integer.")
+    if domain[0] >= domain[1]:
+        raise ValueError("Lower bound of 'domain' must be less than upper bound.")
+    if not callable(f):
+        raise TypeError("Must use a callable function 'f'.")
+    if not isinstance(burn_in, int) or burn_in < 0:
+        raise ValueError("'burn_in' must be a non-negative integer.")
+    if not isinstance(num_init_points, int) or num_init_points < 3:
+        raise ValueError("'num_init_points' must be an integer >= 3.")
     
     print("Starting ARS ...")
     print("Searching for the domain ...")
@@ -371,6 +387,12 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
             x_points = np.sort(np.append(x_points, x_star))
     
     samples = samples[burn_in:]
+
+    # Output checks
+    if not isinstance(samples, np.ndarray):
+        raise TypeError("The output 'samples' must be a numpy array.")
+    if np.any(np.isnan(samples)) or np.any(np.isinf(samples)):
+        raise ValueError("Samples contain NaN or infinite values.")
 
     print(f"Finished sampling. Total samples collected: {len(samples)}")
     return np.array(samples)
