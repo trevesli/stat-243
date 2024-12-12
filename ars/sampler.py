@@ -305,7 +305,7 @@ def init_points(f, domain, threshold = 1e-5):
         
     return init_1, init_2 
 
-def ars(f, num_samples, domain = (-np.inf, np.inf), domain_threshold = 1e-15, domain_step = 0.1, max_step = int(1e6),           burn_in=1000, init_threshold = 1e-5 ,num_init_points=10):
+def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain_step=0.1, max_step=int(1e6), burn_in=1000, init_threshold=1e-5, num_init_points=10):
     """
     Adaptive Rejection Sampling with intelligent initialization and overflow protection.
 
@@ -323,6 +323,14 @@ def ars(f, num_samples, domain = (-np.inf, np.inf), domain_threshold = 1e-15, do
     Returns:
         np.array: Array of sampled points.
     """
+
+    # Check domain is tuple
+    if not isinstance(domain, tuple):
+        raise TypeError("'domain' must be a tuple.")
+    
+    # Check tuple has exactly two elements
+    if len(domain) != 2:
+        raise ValueError("'domain' must contain exactly two elements.")
     
     print("Starting ARS ...")
     print("Searching for the domain ...")
@@ -364,6 +372,3 @@ def ars(f, num_samples, domain = (-np.inf, np.inf), domain_threshold = 1e-15, do
 
     print(f"Finished sampling. Total samples collected: {len(samples)}")
     return np.array(samples)
-
-
-
