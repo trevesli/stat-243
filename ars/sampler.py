@@ -398,3 +398,85 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
     print(f"Finished sampling. Total samples collected: {len(samples)}")
     
     return samples
+
+##### REVISED ARS WITH BATCHING #####
+# def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain_step=0.1, max_step=int(1e6), 
+#         init_threshold=1e-5, num_init_points=10, batch_size=100):
+#     """
+#     Adaptive Rejection Sampling with batch processing and efficient updates.
+
+#     Args:
+#         f (function): Target probability density function.
+#         num_samples (int): Number of samples to generate.
+#         domain (tuple): Range of the distribution.
+#         domain_threshold (float): Threshold to determine if function value is too small.
+#         domain_step (float): Step size in adaptive domain search.
+#         max_step (int): Max step in adaptive domain search.
+#         init_threshold (float): Threshold to find the initial points.
+#         num_init_points (int): Number of initial points for constructing envelope (must be >=3).
+#         batch_size (int): Number of samples to generate per batch before updating the envelope.
+
+#     Returns:
+#         np.array: Array of sampled points.
+#     """
+#     # Input checks
+#     if len(domain) != 2:
+#         raise ValueError("'domain' must contain exactly two elements.")
+#     if num_samples <= 0:
+#         raise ValueError("num_samples must be a positive integer.")
+#     if batch_size <= 0:
+#         raise ValueError("batch_size must be a positive integer.")
+    
+#     print("Starting ARS...")
+#     print("Searching for the domain...")
+#     if domain == (-np.inf, np.inf):
+#         mode_value = mode(np.linspace(-5, 5, 100), axis=None).mode[0]  # Estimate the mode heuristically
+#         domain = adaptive_search_domain(f, start=mode_value, threshold=domain_threshold)
+    
+#     print("Checking if the function is log-concave...")
+#     if not is_log_concave(f, np.linspace(*domain, 1000)):
+#         raise ValueError("The input function is not log-concave!")
+
+#     h = lambda x: h_log(f, x)
+#     init_1, init_2 = init_points(f, domain, threshold=init_threshold)
+#     x_points = np.linspace(init_1, init_2, num_init_points)
+#     samples = []
+    
+#     # Initialize envelope and squeezing functions
+#     envelope_pieces, envelope_points = construct_envelope(x_points, h, domain)
+#     squeezing_pieces, squeezing_points = construct_squeezing(x_points, h, domain)
+
+#     while len(samples) < num_samples:
+#         batch_samples = []
+        
+#         for _ in range(batch_size):
+#             # Sample from the envelope
+#             x_star = sample_piecewise_linear(envelope_pieces, envelope_points)
+#             u = np.random.uniform()
+            
+#             # Check acceptance criteria
+#             if u <= np.exp(calculate_piecewise_linear(x_star, squeezing_pieces, squeezing_points) - 
+#                            calculate_piecewise_linear(x_star, envelope_pieces, envelope_points)):
+#                 batch_samples.append(x_star)
+#             elif u <= np.exp(h(x_star) - calculate_piecewise_linear(x_star, envelope_pieces, envelope_points)):
+#                 batch_samples.append(x_star)
+#                 x_points = np.sort(np.append(x_points, x_star))
+
+#         # Update envelope and squeezing functions with the batch
+#         for x_star in batch_samples:
+#             envelope_pieces, envelope_points = update_envelope(h, x_points, envelope_pieces, envelope_points, x_star)
+#             squeezing_pieces, squeezing_points = update_squeezing(h, squeezing_pieces, squeezing_points, x_star)
+        
+#         samples.extend(batch_samples[:num_samples - len(samples)])
+
+#     samples = np.array(samples)
+
+#     # Output checks
+#     if not isinstance(samples, np.ndarray):
+#         raise TypeError("The output 'samples' must be a numpy array.")
+#     if np.any(np.isnan(samples)) or np.any(np.isinf(samples)):
+#         raise ValueError("Samples contain NaN or infinite values.")
+
+#     print(f"Finished sampling. Total samples collected: {len(samples)}")
+    
+#     return samples
