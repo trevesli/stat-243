@@ -1,10 +1,11 @@
 import os
 import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../ars')))
+
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../ars')))
 
 from ars.sampler import (
     ars,
@@ -28,6 +29,8 @@ def test_inputs():
         ars(log_concave, 100, domain=(-5, 5, 10))
     with pytest.raises(TypeError, match="'domain' must be a tuple."):
         ars(log_concave, 100, domain=[-5, 5])
+    with pytest.raises(ValueError, match="num_samples must be a positive integer"):
+        ars(gaussian, num_samples=-100, domain=(-5, 5))
     with pytest.raises(ValueError, match="Invalid domain: values must be numeric."):
         ars(log_concave, 100, domain=(-np.inf, "not_a_number"))
     with pytest.raises(ValueError, match="num_samples must be a positive integer"):
