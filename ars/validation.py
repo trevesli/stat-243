@@ -47,6 +47,10 @@ def compare_samples_to_distribution(samples, target_pdf, domain, check_mean=True
     Returns:
         None. (Plots and/or prints comparison results.)
     """
+    if len(samples) == 0:
+        print("KS Test skipped, sample array is empty.")
+        return
+
     try:
         # 1. If calculable, compare mean
         if check_mean:
