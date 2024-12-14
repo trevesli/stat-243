@@ -1,5 +1,5 @@
 import numpy as np
-from .utils import check_overflow_underflow, h_log, h_cached
+from .utils import h_log
 from .validation import is_log_concave
 
 def construct_envelope(hull_points, h, domain):
