@@ -125,7 +125,7 @@ def integrate_mean(pdf, domain, num_points=1000):
         x_vals = np.linspace(*domain, num_points)
         pdf_values = pdf(x_vals)
         pdf_values = np.maximum(pdf_values, 1e-10)  # Avoid numerical issues
-        mean = np.trapz(x_vals * pdf_values, x_vals) / np.trapz(pdf_values, x_vals)
+        mean = np.trapezoid(x_vals * pdf_values, x_vals) / np.trapezoid(pdf_values, x_vals)
         return mean, True
     except Exception as e:
         print(f"Error integrating mean: {e}")
