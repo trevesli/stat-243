@@ -122,7 +122,7 @@ def test_ks_test_uniform_dist():
             mock_kstest.return_value = (0.1, 0.01)  # KS stat and p-value (yes significant diff)
             compare_samples_to_distribution(samples, lambda x: stats.norm.pdf(x), domain)
             
-            mock_print.assert_any_call(ANY)  # Match any print call
+            mock_print.assert_any_call(ANY) 
             assert any("KS Statistic" in call[0][0] for call in mock_print.call_args_list)
             assert any("p-value" in call[0][0] for call in mock_print.call_args_list)
             assert any("Warning: KS Test suggests samples differ significantly from target distribution." in call[0][0] for call in mock_print.call_args_list)
@@ -158,5 +158,5 @@ def test_ks_test_invalid_target_pdf():
     with patch("builtins.print") as mock_print:
         compare_samples_to_distribution(samples, invalid_target_pdf, domain)
         
-        mock_print.assert_any_call(ANY)  # Match any print call
+        mock_print.assert_any_call(ANY)
         assert any("KS Test skipped" in call[0][0] for call in mock_print.call_args_list)
