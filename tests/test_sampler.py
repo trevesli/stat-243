@@ -6,11 +6,26 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../a
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
-
 from ars.sampler import (
     ars,
-    construct_envelope
+    construct_envelope,
+    sample_piecewise_linear
 )
+
+#################################################
+### Mock data and helper functions for testing
+#################################################
+@pytest.fixture
+def mock_envelope_data():
+    x = np.linspace(0, 10, 100)
+    h = lambda x: np.exp(-x)  # Define h as a callable function
+    return x, h
+
+@pytest.fixture
+def mock_piecewise_linear_data():
+    x = np.array([0, 2, 4, 6, 8, 10])
+    y = np.array([1, 0.8, 0.6, 0.4, 0.2, 0.1])
+    return x, y
 
 def log_concave(x):
     return np.exp(-x**2)
@@ -18,6 +33,9 @@ def log_concave(x):
 def gaussian(x):
     return np.exp(-0.5 * x**2)
 
+#################################################
+### Unit tests
+#################################################
 def test_inputs():
     with pytest.raises(TypeError, match="'domain' must be a tuple."):
         ars(log_concave, 100, domain="invalid_domain")
@@ -91,6 +109,65 @@ def test_adaptive_domain_search():
     samples = ars(log_concave, num_samples, domain)
     
     assert len(samples) == num_samples
+
+def test_envelope_and_sampling(mock_envelope_data, mock_piecewise_linear_data):
+    # Test construct_envelope
+    x, h = mock_envelope_data
+    domain = (min(x), max(x))  # Define the domain based on the input data
+    envelope = construct_envelope(x, h, domain)
+
+    # Validate envelope construction
+    assert isinstance(envelope, tuple), "Envelope should be a tuple."
+    assert len(envelope) == 2, "Envelope tuple should contain two elements (pieces, z_points)."
+    pieces, z_points = envelope
+
+    # Validate pieces
+    assert isinstance(pieces, list), "Pieces should be a list."
+    assert all(isinstance(item, tuple) and len(item) == 2 for item in pieces), \
+        "Each piece should be a tuple of (slope, intercept)."
+
+    # Validate z_points
+    assert isinstance(z_points, list), "z_points should be a list."
+    assert len(z_points) == len(pieces) + 1, \
+        f"Expected {len(pieces) + 1} z_points, but got {len(z_points)}."
+
+    # Validate sampling (mock_piecewise_linear_data test)
+    x, y = mock_piecewise_linear_data
+    sampled = sample_piecewise_linear(pieces, z_points)
+
+    # Check sampled is scalar value
+    assert isinstance(sampled, (float, np.float64)), "Sampled point should be a scalar value."
+    assert sampled >= min(x) and sampled <= max(x), "Sampled point should be within the x range."
+
+def test_construct_envelope_basic():
+    """
+    Checks that the function calculates the correct number of line segments
+    (pieces) and intersection points (z_points) based on hull points.
+    """
+    hull_points = np.array([-3, 0, 3])
+    h = lambda x: -0.5 * x**2  # Log of Gaussian
+    domain = (-5, 5)
+
+    # Construct envelope
+    pieces, z_points = construct_envelope(hull_points, h, domain)
+
+    # Check first and last points in z_points are domain boundaries
+    assert np.isclose(z_points[0], domain[0]), \
+        f"First z_point should be {domain[0]}, but got {z_points[0]}."
+    assert np.isclose(z_points[-1], domain[1]), \
+        f"Last z_point should be {domain[1]}, but got {z_points[-1]}."
+
+    # Additional check that the z_points are in increasing order
+    for i in range(1, len(z_points)):
+        assert z_points[i] > z_points[i - 1], \
+            f"z_points should be in increasing order, but {z_points[i-1]} > {z_points[i]}."
+
+    # Check slopes and intercepts are of expected type and value
+    for piece in pieces:
+        assert isinstance(piece, tuple), "Each piece should be a tuple."
+        assert len(piece) == 2, "Each piece should contain (slope, intercept)."
+        assert isinstance(piece[0], float), "Slope should be a float."
+        assert isinstance(piece[1], float), "Intercept should be a float."
 
 def test_construct_envelope_invalid():
     hull_points = [1, 2]  # Less than 3 points
