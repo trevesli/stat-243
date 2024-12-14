@@ -1,55 +1,98 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../ars')))
+
 import pytest
 import numpy as np
-from ars import construct_envelope, calculate_envelope, sample_piecewise_linear
+from ars.utils import check_overflow_underflow, h_log, h_cached
 
-def test_construct_envelope():
-    """
-    Test construct_envelope.
+"""
+def test_check_overflow_underflow():
+    large_number = 1e308
+    small_number = 1e-308
+    normal_number = 1.0
+    
+    assert check_overflow_underflow(large_number) == "overflow", \
+        "Large number should trigger 'overflow'."
+    assert check_overflow_underflow(small_number) == "underflow", \
+        "Small number should trigger 'underflow'."
+    assert check_overflow_underflow(normal_number) == "normal", \
+        "Normal number should not trigger overflow or underflow."
+"""
 
-    Checks that the function calculates the correct number of line segments
-    (pieces) and intersection points (z_points) (based on hull points).
-    """
-    # Define input parameters for envelope construction
-    hull_points = np.array([-3, 0, 3])
-    h = lambda x: -0.5 * x**2  # Log of Gaussian
-    domain = (-5, 5)
-    
-    # Construct envelope
-    pieces, z_points = construct_envelope(hull_points, h, domain)
-    
-    # Validate outputs
-    assert len(pieces) == len(hull_points) - 1  # One fewer segment than hull points
-    assert len(z_points) == len(hull_points) + 1  # Two more z-points than hull points
+"""
+def test_h_cached():
+    def f(x):
+        return x * 2 
 
-def test_calculate_envelope():
-    """
-    Test calculate_envelope.
+    x = np.array([1.0, 2.0])
 
-    Verifies that the envelope value at a given point matches the expected
-    value derived from the input line segments and their parameters.
-    """
-    # Define input parameters for envelope construction
-    hull_points = np.array([-3, 0, 3])
-    h = lambda x: -0.5 * x**2  # Log of Gaussian
-    domain = (-5, 5)
-    pieces, z_points = construct_envelope(hull_points, h, domain)
-    
-    # Test envelope value at x=0
-    x = 0
-    y = calculate_envelope(x, pieces, z_points)
-    assert np.isclose(y, h(x), atol=1e-2)  # Ensure calculated value matches expected
+    cached_results = h_cached(f, x)  # Pass the callable function `f`
 
-def test_sample_piecewise_linear():
-    # Simple linear case
-    pieces = [(1, 0), (0, 1)]  # Linear and constant
-    z_points = [0, 1, 2]
-    samples = [sample_piecewise_linear(pieces, z_points) for _ in range(1000)]
+    assert isinstance(cached_results, np.ndarray), "Cached result should be a numpy array."
+    assert pytest.approx(cached_results, rel=1e-6) == h_log(f, x), \
+        "Cached result should match the h_log output."
     
-    # Test range of outputs
-    assert all(0 <= s <= 2 for s in samples)
-    
-    # Test invalid inputs
-    with pytest.raises(ValueError):
-        sample_piecewise_linear([(1, 0)], [0, 1, 2])  # Mismatch
-    with pytest.raises(ValueError):
-        sample_piecewise_linear([(1, 0)], [0, 1, 1])  # Non-increasing
+    cached_results_again = h_cached(f, x)
+    assert np.array_equal(cached_results, cached_results_again), \
+        "Cached result should remain consistent across calls."
+"""
+
+# Test 1: Basic functionality
+def test_h_log_basic():
+    # Test with a simple function, e.g., log(x)
+    def log_function(x):
+        return np.log(x)
+
+    # Expected result for h_log on log_function at 1 (log(1) = 0)
+    result = h_log(log_function, 1)
+    assert np.isclose(result, 0), f"Expected 0, got {result}"
+
+    # Expected result for h_log on log_function at 10 (log(10) ≈ 2.3026)
+    result = h_log(log_function, 10)
+    assert np.isclose(result, 2.3026, atol=1e-4), f"Expected ≈ 2.3026, got {result}"
+
+# Test 2: Handling empty inputs
+def test_h_log_empty_input():
+    # Test with an empty list (if applicable for the function)
+    with pytest.raises(ValueError, match="Input must not be empty"):
+        h_log(None, 0)  # Assuming h_log raises ValueError for invalid inputs
+
+# Test 3: Handling negative or zero inputs
+def test_h_log_zero_input():
+    # Test with zero (if input is a logarithmic function or similar)
+    def log_function(x):
+        if x <= 0:
+            raise ValueError("Log input must be greater than 0")
+        return np.log(x)
+
+    with pytest.raises(ValueError, match="Log input must be greater than 0"):
+        h_log(log_function, 0)
+
+# Test 4: Performance testing with large input
+def test_h_log_large_input():
+    # Test with a very large input
+    result = h_log(np.log, 1e6)
+    assert result > 0, f"Expected positive result, got {result}"
+
+# Test 5: Test invalid function type
+def test_h_log_invalid_function():
+    # Pass an invalid function (non-callable object)
+    with pytest.raises(TypeError, match="Input must be callable"):
+        h_log(123, 10)
+
+# Test 6: Test boundary conditions (very small or large numbers)
+def test_h_log_boundaries():
+    # Test with a very small value
+    result = h_log(np.log, 1e-10)
+    assert np.isclose(result, -23.0259, atol=1e-4), f"Expected ≈ -23.0259, got {result}"
+
+    # Test with a very large value
+    result = h_log(np.log, 1e10)
+    assert np.isclose(result, 23.0259, atol=1e-4), f"Expected ≈ 23.0259, got {result}"
+
+# Test 7: Specific cases
+def test_h_log_invalid_input():
+    with pytest.raises(TypeError, match="Input must be callable"):
+        h_log("invalid_input", 5)

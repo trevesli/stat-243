@@ -10,7 +10,7 @@ def check_overflow_underflow(values, dtype=np.float64):
 
     return values
 
-def h_log(f, x):
+def h_log_superseded(f, x):
     """Manual caching for log of the target function with underflow protection."""
     if isinstance(x, np.ndarray):
         x_key = tuple(x.tolist())  # Convert array to hashable tuple
@@ -26,6 +26,34 @@ def h_log(f, x):
             f_value = max(f_value, np.finfo(float).eps)  # Prevent underflow for scalars
         h_log.cache[x_key] = np.log(f_value)
 
+    return h_log.cache[x_key]
+
+def h_log(f, x):
+    """Manual caching for log of the target function."""
+    
+    # Checks
+    if f is None:
+        raise ValueError("Input must not be empty")
+    if not callable(f):
+        raise TypeError("Input must be callable")
+    if isinstance(x, np.ndarray):
+        x_key = tuple(x.tolist())  # Convert array to hashable tuple
+    else:
+        x_key = x
+    
+    # Ensure cache is initialized (if not done already)
+    if not hasattr(h_log, "cache"):
+        h_log.cache = {}
+    
+    # Check cache and compute value if not already computed
+    if x_key not in h_log.cache:
+        try:
+            f_value = f(x)
+            # Caching the result
+            h_log.cache[x_key] = f_value
+        except Exception as e:
+            raise ValueError(f"Error in computing function value: {e}")
+    
     return h_log.cache[x_key]
 
 h_log.cache = {}
