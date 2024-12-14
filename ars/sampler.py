@@ -211,6 +211,9 @@ def sample_piecewise_linear(pieces, z_points):
     # Input checks
     if len(z_points) != len(pieces) + 1:
         raise ValueError(f"Length of `z_points` ({len(z_points)}) should be length of `pieces` ({len(pieces)}) + 1")
+    for i in range(len(z_points)-1):
+        if z_points[i] >= z_points[i+1]:
+            raise ValueError(f"Something wrong with the sampling procedure, please check the log-concaveness of the function.")
 
     areas, cumulative_areas = [], [0]
     
@@ -355,10 +358,6 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
     print("Searching for the domain ...")
     if domain == (-np.inf, np.inf):
         domain = adaptive_search_domain(f, threshold = domain_threshold)
-    
-    print("Checking if the function is log-concave ...")
-    if not is_log_concave(f, np.linspace(*domain, 1000)):
-        raise ValueError("The input function is not log-concave!")
 
     h = lambda x: h_log(f, x)
     
@@ -367,11 +366,20 @@ def ars(f, num_samples, domain=(-np.inf, np.inf), domain_threshold=1e-15, domain
     samples = []
     envelope_pieces, envelope_points = construct_envelope(x_points, h, domain)
     squeezing_pieces, squeezing_points = construct_squeezing(x_points, h, domain)
+    
+    ## Check the log-concaveness of the function
+    x_check = np.linspace(envelope_points[0]+1e-10, envelope_points[-1]-1e-10, 1000)
+    for x in x_check:
+        if calculate_piecewise_linear(x, squeezing_pieces, squeezing_points) > calculate_piecewise_linear(x, envelope_pieces, envelope_points):
+            raise ValueError("The input function is not log-concave!")
 
     while len(samples) <= (num_samples + burn_in-1):
         # Sample from the envelope
         x_star = sample_piecewise_linear(envelope_pieces, envelope_points)
         u = np.random.uniform()
+        
+        if calculate_piecewise_linear(x_star, squeezing_pieces, squeezing_points) > calculate_piecewise_linear(x_star, envelope_pieces, envelope_points):
+            raise ValueError("The input function is not log-concave!")
 
         # Check acceptance criteria
         if u <= np.exp(calculate_piecewise_linear(x_star, squeezing_pieces, squeezing_points) -               calculate_piecewise_linear(x_star, envelope_pieces, envelope_points)):  # Check lower bound
