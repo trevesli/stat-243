@@ -10,7 +10,7 @@ def check_overflow_underflow(values, dtype=np.float64):
 
     return values
 
-def h_log_superseded(f, x):
+def h_log(f, x):
     """Manual caching for log of the target function with underflow protection."""
     if isinstance(x, np.ndarray):
         x_key = tuple(x.tolist())  # Convert array to hashable tuple
@@ -28,9 +28,8 @@ def h_log_superseded(f, x):
 
     return h_log.cache[x_key]
 
-def h_log(f, x):
+def h_log_test(f, x):
     """Manual caching for log of the target function."""
-    
     # Checks
     if f is None:
         raise ValueError("Input must not be empty")
