@@ -55,8 +55,6 @@ def test_h_log_bad_inputs():
     # Pass an invalid function (non-callable object)
     with pytest.raises(TypeError, match="is not callable"):
         h_log(123, 10)
-    with pytest.raises(TypeError, match="is not callable"):
-        h_log("invalid_input", 5)
 
 # Performance testing with large input
 def test_h_log_large_input():

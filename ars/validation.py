@@ -47,6 +47,10 @@ def compare_samples_to_distribution(samples, target_pdf, domain, check_mean=True
     Returns:
         None. (Plots and/or prints comparison results.)
     """
+    if len(samples) == 0:
+        print("KS Test skipped, sample array is empty.")
+        return
+
     try:
         # 1. If calculable, compare mean
         if check_mean:
@@ -125,7 +129,7 @@ def integrate_mean(pdf, domain, num_points=1000):
         x_vals = np.linspace(*domain, num_points)
         pdf_values = pdf(x_vals)
         pdf_values = np.maximum(pdf_values, 1e-10)  # Avoid numerical issues
-        mean = np.trapz(x_vals * pdf_values, x_vals) / np.trapz(pdf_values, x_vals)
+        mean = np.trapezoid(x_vals * pdf_values, x_vals) / np.trapezoid(pdf_values, x_vals)
         return mean, True
     except Exception as e:
         print(f"Error integrating mean: {e}")
