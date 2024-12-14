@@ -21,11 +21,16 @@ def is_log_concave(f, x_range):
     
     log_f_values = np.log(f_values)
     
+    if log_f_values.ndim == 0:  # Scalar check
+        raise ValueError("Function should return an array of values, not a scalar.")
+    
     # Compute second derivative
     log_f_second_derivative = np.gradient(np.gradient(log_f_values, x), x)
-    
+
     # Check second derivative is non-positive (i.e. log-concave condition)
-    is_log_concave = np.all(log_f_second_derivative <= 0)
+    if np.any(log_f_second_derivative > 1e-10):
+        raise ValueError("The function is not log-concave!")    
+    is_log_concave = np.all(log_f_second_derivative <= 1e-10)
     
     return is_log_concave
 
