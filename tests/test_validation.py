@@ -35,7 +35,6 @@ def test_is_log_concave():
     with pytest.raises(ValueError, match="The function is not log-concave!"):
         is_log_concave(non_log_concave, x_range)
     
-    # TODO
     """
     # Test with log-normal (valid)
     def log_normal(x):
