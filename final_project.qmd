@@ -5,6 +5,8 @@ format: pdf
 engine: knitr
 ---
 
+GitHub repo for this project [https://github.berkeley.edu/ap-kasliwal/ars-dev](https://github.berkeley.edu/ap-kasliwal/ars-dev).
+
 # 1. Functional Programming Implementation of `ARS`
 
 Our implementation of Adaptive Rejection Sampling, based on the `Gilkis et.al.` is based on the following modular functions;
@@ -39,7 +41,7 @@ Our implementation of Adaptive Rejection Sampling, based on the `Gilkis et.al.` 
 
 # 2. File Structure and Modules
 
-We propose the following file structure, into which we collapse all the functions defined above. As visualized below, our main functional code is present in the `ars` directory within the `gradients.py`, `sampler.py`, `utils.py` and `validation.py` files. 
+We propose the following file structure, into which we collapse all the functions defined above. As visualized below, our main functional code is present in the `ars` directory within the `gradients.py`, `sampler.py`, `utils.py` and `validation.py` files. All the files are available in this [GitHub repo](https://github.berkeley.edu/ap-kasliwal/ars-dev).
 
 On the other hand, we have a directory called `tests` which contains different files focusing on various aspects of testing our code - all of which can be executed using `pytest` with the following command:
 
@@ -47,18 +49,24 @@ On the other hand, we have a directory called `tests` which contains different f
 pytest tests/.
 ```
 
-This project is organized as follows:
+This project is organized as follows; some irrelevant subdirectories or files are omitted for organizational clarity:
 
 ```text
 ├── README.md                     # Project overview and instructions
 ├── ars                           # Main ARS package
 │   ├── __init__.py               # Package initializer
-│   ├── gradients.py              # Gradient computation utilities
 │   ├── sampler.py                # ARS sampling implementation
+│   ├── sampler_jax.py            #TODO EXPLAIN <--------------------------
 │   ├── utils.py                  # General utility functions
 │   └── validation.py             # Validation functions for ARS
+├── ars.ipynb                     #TODO EXPLAIN (can also omit) <--------------------------
+├── ars_new.ipynb                 #TODO EXPLAIN (can also omit) <--------------------------
 ├── debug_and_compare.ipynb       # Jupyter notebook for debugging and comparison
+├── final_project.pdf             # Final PDF deliverable
+├── final_project.qmd             # Quarto document for the PDF deliverable
+├── pytest.ini                    # Configure pytest settings
 ├── requirements.txt              # Python dependencies for the project
+├── setup.py                      # Distribution installation metadata & instructions
 └── tests                         # Unit tests for the project
     ├── test_sampler.py           # Tests for sampler module
     ├── test_utils.py             # Tests for utils module
@@ -68,16 +76,52 @@ This project is organized as follows:
 
 # 3. Installation of the package and code exceution
 
-We've included specific files called `requirements.txt` and `setup.py` which allow transforming our developed code into an installable package through the following command;
+We've included specific files called `requirements.txt` and `setup.py` which allow transforming our developed code into an installable package through the following command:
 
 ```{python, eval=FALSE}
 pip install .
 ```
 
-# 4. Testing
+After installation, the package can be run simply with a code similar to the example provided below:
 
----
+```{python, eval=TRUE}
+import numpy as np
+import ars
+
+def gaussian(x):
+    return np.exp(-0.5 * x**2)
+
+samples = ars.sars(gaussian, num_samples=10000, domain=(-5, 5), num_init_points=10)
+
+hist, bin_edges = np.histogram(samples, bins=50, density=True) 
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+true_density = np.exp(-0.5 * bin_centers**2) / np.sqrt(2 * np.pi)
+
+# Plotting
+plt.figure(figsize=(8, 6))
+plt.plot(bin_centers, true_density, label="True Gaussian", color='red', linewidth=2)
+plt.bar(bin_centers, hist, width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6)
+plt.xlabel('x')
+plt.ylabel('Density')
+plt.legend()
+plt.title('Comparison of Sampled Distribution with True Gaussian')
+plt.show()
+```
+
+# 4. Testing
+For testing of the code, we took an iterative approach where some members of the team would work on particular core functions, while others would develop unit tests using `pytest`. The tests can be found in the `tests` subdirectory, with Python scripts written to correspond roughly to one of `sampler.py`, `validation.py`, and `utils.py`.
+
+In `test_sampler.py`, we began by testing the user input checks on our `ars` function (e.g., ensuring the correct data types were passed, with the correct number of elements, etc.). We made sure that any error messages returned were informative, both for the user's sake and for our own debugging purposes. The second set of unit tests focusses on testing basic functionality of the sampling script and checking that the correct number of samples were returned for a given domain boundary. When we were considering implementing burn-in, we added a check to ensure that our code handled pre-sampling without returning an incongruous output length. The `test_adaptive_domain_search` function checks the behavior of our code over infinite domains, and again ensures that the desired sample size is returned.
+
+The `test_envelope_and_sampling` function tests two components simultaneously: `construct_envelope` and `sample_piecewise_linear`. The `construct_envelope` function builds the upper hull envelope of the target function, and validates that the envelope output has the correct structure and that the number of `z_points` is consistent with the number of `pieces`. Additional checks confirm that the sampled points were scalars and lie within the defined domain. The `test_stability` function evaluates our code across a range of small and large variances, since we were concerned how our code would perform numerically on these edge cases. Finally, we tested for the distribution accuracy by comparing the sampled distributions to the true target densities, and ensuring the final result falls within a given tolerance.
+
+In `test_validation.py`, we wrote the `test_is_log_concave` function to ensure  we were correctly identifying log-concave target functions. Part of this testing included verifying edge cases such as valid log-concave functions (e.g., Gaussian and exponential), non-log-concave functions (e.g., quadratic), and improper inputs like negative values or constant functions. Additionally, the KS-related tests evaluated the `compare_samples_to_distribution` function in `validation.py` by mocking outputs and verifying that the printed warnings and/or results were appropriate.
+
+The last series of unit tests were included in `test_utils.py`. Included in this quite were tests to ensure that our `h_log` function handled invalid/edge inputs such as `None`, zero values (invalid for logarithmic operations), and non-callable objects. We also tested its performance with very large inputs, to see if it would run to completion without overflow or other numerical errors.
 
 \newpage
 
 # 5. Statement of Contribution
+* **Aparimit Kasliwal**:
+* **Treves Li**: Testing; installation and package setup
+* **Yuyang Wu**: 
