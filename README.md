@@ -13,9 +13,9 @@ pip install .
 import numpy as np
 import ars
 
-def target_function(x):
-    return np.exp(-0.5 * (x - 2) ** 2)
+def gaussian(x):
+    return np.exp(-0.5 * x**2)
 
 if __name__ == "__main__":
-    samples = ars.ars(target_function, num_samples=1000, domain=(-3, 3))
+    samples = ars.ars(gaussian, num_samples=10000, domain=(-3, 3))
 ```
