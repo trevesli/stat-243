@@ -123,6 +123,6 @@ The last series of unit tests were included in `test_utils.py`. Included in this
 \newpage
 
 # 5. Statement of Contribution
-* **Aparimit Kasliwal**: Initial Functional Structure \& Ideation; AD Implementation using `jax`; Addressing numerical issues during computation
+* **Aparimit Kasliwal**: Initial Functional Structure \& Ideation; AD Implementation with `jax`; Addressing numerical issues during computation
 * **Treves Li**: Testing; installation and package setup; Finalization of the Funtional Structure
-* **Yuyang Wu**: Initial Functional Structure; Algorithm Development
+* **Yuyang Wu**: Initial Functional Structure \& Ideation; Algorithm Development; Sampling Domain Search
