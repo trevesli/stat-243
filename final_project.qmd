@@ -51,7 +51,7 @@ pytest tests/.
 
 This project is organized as follows; some irrelevant subdirectories or files are omitted for organizational clarity:
 
-```text
+```{bash}
 ├── README.md                     # Project overview and instructions
 ├── ars                           # Main ARS package
 │   ├── __init__.py               # Package initializer
@@ -59,9 +59,6 @@ This project is organized as follows; some irrelevant subdirectories or files ar
 │   ├── sampler_jax.py            #TODO EXPLAIN <--------------------------
 │   ├── utils.py                  # General utility functions
 │   └── validation.py             # Validation functions for ARS
-├── ars.ipynb                     #TODO EXPLAIN (can also omit) <--------------------------
-├── ars_new.ipynb                 #TODO EXPLAIN (can also omit) <--------------------------
-├── debug_and_compare.ipynb       # Jupyter notebook for debugging and comparison
 ├── final_project.pdf             # Final PDF deliverable
 ├── final_project.qmd             # Quarto document for the PDF deliverable
 ├── pytest.ini                    # Configure pytest settings
@@ -101,8 +98,11 @@ true_density = np.exp(-0.5 * bin_centers**2) / np.sqrt(2 * np.pi)
 
 # Plotting
 plt.figure(figsize=(8, 6), dpi=300)
-plt.plot(bin_centers, true_density, label="True Gaussian", color='red', linewidth=2)
-plt.bar(bin_centers, hist, width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6)
+plt.plot(bin_centers, true_density, label="True Gaussian", color='red', lw=2)
+plt.bar(
+    bin_centers, hist, 
+    width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6
+    )
 plt.xlabel('x')
 plt.ylabel('Density')
 plt.legend()
