@@ -92,6 +92,7 @@ import matplotlib.pyplot as plt
 def gaussian(x):
     return np.exp(-0.5 * x**2)
 
+# We can specify the domain and num_init_points
 samples = ars.ars(gaussian, num_samples=10000, domain=(-5, 5), num_init_points=10)
 
 hist, bin_edges = np.histogram(samples, bins=50, density=True) 
@@ -106,6 +107,29 @@ plt.xlabel('x')
 plt.ylabel('Density')
 plt.legend()
 plt.title('Comparison of Sampled Distribution with True Gaussian')
+plt.show()
+```
+
+```{python, eval=TRUE}
+from scipy import stats
+
+gamma = lambda x: stats.gamma.pdf(x, a=2, scale = 3)
+
+# We can also just plug in the function and the num_samples.
+samples = ars.ars(gamma, num_samples=10000)
+
+hist, bin_edges = np.histogram(samples, bins=50, density=True) 
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+true_density = stats.gamma.pdf(bin_centers, a=2, scale = 3)
+
+# Plotting
+plt.figure(figsize=(8, 6), dpi=300)
+plt.plot(bin_centers, true_density, label="True Gamma", color='red', linewidth=2)
+plt.bar(bin_centers, hist, width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6)
+plt.xlabel('x')
+plt.ylabel('Density')
+plt.legend()
+plt.title('Comparison of Sampled Distribution with True Gamma')
 plt.show()
 ```
 
