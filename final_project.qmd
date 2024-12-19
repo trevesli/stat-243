@@ -35,6 +35,14 @@ Our implementation of Adaptive Rejection Sampling, based on the `Gilkis et.al.` 
 
 (l) `ars` function: This is the key sampling function, whihc pretty much calls the other function within itself to perform modular tasks - which made for the whole sampling process pretty smooth to debug in case of any intermediate errors. Samples that are generated are either accpeted or rejected - where the former are appended to a list that is returned to the user, while the latter are used to consecutively update the envelope so theat the envelope forms a tighter approximation to the target function. We tried implement batching, which generated multiple samples in one single iteration, but found ourselves out of time to implement the changes required in other functions to incorporate the presence of multiple accepted and multiple rejected samples in one single iteration of the algorithm. Overall, we discovered that each of the samples accepted according to the criterion was correct, and the rejection rate of the sampling algorithm went down as the number of iterations of sampling iterations increased, since the envelope became a tighter and a better approximation for the target function. 
 
+\newpage
+
+**Note:**
+
+1. We've implemented the sampling procedure using `jax`, where the gradients (wherever needed) are calculated using AD instead of numerical differentiation. This is presented in a file called `sampler_jax.py`, but we have not included the tests for it. 
+
+---
+
 # 2. File Structure and Modules
 
 We propose the following file structure, into which we collapse all the functions defined above. As visualized below, our main functional code is present in the `ars` directory within the `gradients.py`, `sampler.py`, `utils.py` and `validation.py` files. All the files are available in this [GitHub repo](https://github.berkeley.edu/ap-kasliwal/ars-dev).
@@ -47,25 +55,26 @@ pytest tests/.
 
 This project is organized as follows; some irrelevant subdirectories or files are omitted for organizational clarity:
 
-```{bash}
+```{plaintext}
 ├── README.md                     # Project overview and instructions
 ├── ars                           # Main ARS package
 │   ├── __init__.py               # Package initializer
 │   ├── sampler.py                # ARS sampling implementation
-│   ├── sampler_jax.py            #TODO EXPLAIN <--------------------------
+│   ├── sampler_jax.py            # ARS sampling implementation through jax
 │   ├── utils.py                  # General utility functions
 │   └── validation.py             # Validation functions for ARS
 ├── final_project.pdf             # Final PDF deliverable
 ├── final_project.qmd             # Quarto document for the PDF deliverable
 ├── pytest.ini                    # Configure pytest settings
 ├── requirements.txt              # Python dependencies for the project
-├── setup.py                      # Distribution installation metadata & instructions
+├── setup.py                      # Distribution installation instructions
 └── tests                         # Unit tests for the project
     ├── test_sampler.py           # Tests for sampler module
     ├── test_utils.py             # Tests for utils module
     └── test_validation.py        # Tests for validation module
 ```
 
+---
 
 # 3. Installation of the package and code exceution
 
@@ -99,10 +108,10 @@ plt.bar(
     bin_centers, hist, 
     width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6
     )
-plt.xlabel('x')
-plt.ylabel('Density')
+plt.xlabel('x', fontsize=14)
+plt.ylabel('Density', fontsize=14)
 plt.legend()
-plt.title('Comparison of Sampled Distribution with True Gaussian')
+plt.title('Comparison of Sampled Distribution with True Gaussian', fontsize=18)
 plt.show()
 ```
 
@@ -121,13 +130,15 @@ true_density = stats.gamma.pdf(bin_centers, a=2, scale = 3)
 # Plotting
 plt.figure(figsize=(8, 6), dpi=300)
 plt.plot(bin_centers, true_density, label="True Gamma", color='red', linewidth=2)
-plt.bar(bin_centers, hist, width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6)
-plt.xlabel('x')
-plt.ylabel('Density')
+plt.bar(bin_centers, hist, \
+    width=bin_edges[1] - bin_edges[0], label="Sampled Histogram", alpha=0.6)
+plt.xlabel('x', fontsize=14)
+plt.ylabel('Density', fontsize=14)
 plt.legend()
-plt.title('Comparison of Sampled Distribution with True Gamma')
+plt.title('Comparison of Sampled Distribution with True Gamma', fontsize=18)
 plt.show()
 ```
+---
 
 # 4. Testing
 For testing of the code, we took an iterative approach where some members of the team would work on particular core functions, while others would develop unit tests using `pytest`. The tests can be found in the `tests` subdirectory, with Python scripts written to correspond roughly to one of `sampler.py`, `validation.py`, and `utils.py`.
@@ -139,6 +150,8 @@ The `test_envelope_and_sampling` function tests two components simultaneously: `
 In `test_validation.py`, we wrote the `test_is_log_concave` function to ensure  we were correctly identifying log-concave target functions. Part of this testing included verifying edge cases such as valid log-concave functions (e.g., Gaussian and exponential), non-log-concave functions (e.g., quadratic), and improper inputs like negative values or constant functions. Additionally, the KS-related tests evaluated the `compare_samples_to_distribution` function in `validation.py` by mocking outputs and verifying that the printed warnings and/or results were appropriate.
 
 The last series of unit tests were included in `test_utils.py`. Included in this quite were tests to ensure that our `h_log` function handled invalid/edge inputs such as `None`, zero values (invalid for logarithmic operations), and non-callable objects. We also tested its performance with very large inputs, to see if it would run to completion without overflow or other numerical errors.
+
+---
 
 \newpage
 
