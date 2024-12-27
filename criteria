@@ -1,0 +1,64 @@
+Grade: 88
+You obviously put a lot of effort in here and made some good progress on solving the problem, but overall the project didn't fully come together to produce a solid implementation. In particular, the handling of the initial points does not work well, either in terms of coming up with good points or in terms of efficiency.
+
+## ease of accessing package, help, tests:
+
+Good.
+
+## main help page:
+
+A bit limited - the stuff with the domain details, max_step, burnin is not explained at all.
+
+## quality of user interface:
+
+Why are samples discarded? All samples should be valid.
+
+What does "searching for the domain" mean? Is this about finding the initial points? If so, the message is confusing.
+
+Would be useful to allow user to provide initial samples in tricky cases.
+
+## performance on my tests:
+
+Fails 4 of my 6 tests during the domain searching step. Two are truncated normals, one is a gamma, and one is the laplace density. The first three should be straightforward.
+
+## t density output:
+
+Detected non-log-concavity.
+
+## tests:
+
+Tests pass.
+
+It's a bit awkward to make plots within the test suite.
+
+The first and third qq-plots produced seem to suggest invalid sampling. No explanation is given.
+
+Tests of non-log-concavity plus tests of valid sampling for a couple distributions. Tests of valid inputs. Various unit tests, though many of them check structure rather than numerical correctness. 
+
+Why are tests in `test_utils.py` in a docstring? 
+
+## code efficiency:
+
+'Domain search' takes a long time.
+
+Slow. 75 sec. for 5000 samples, but much of this seems to be the domain search. It would take more effort for me to quantify the efficiency of the actual sampling.
+
+Not clear why you would cache the logdensity or worry about underflow. Does something bad happen if it underflows and returns 0?
+
+Good use of inserting points for lower and upper envelope, avoiding recalculation of things you don't need to recalculate. But then it seems that you recalculate the areas on every iteration (lines 220-231), when that could be cached also.
+
+I can't follow the logic of what you are doing with `adaptive_search_domain`. Why do you need to do this when the domain is the whole real line? It seems to relate to the initial points, but it is not explained. Also as seen with my testing, your implementation is not robust to fairly straightforward densities.
+
+## code organization/clarity/elegance:
+
+Generally makes sense, but the domain/initial point stuff is hard to understand and not well commented/documented.
+
+I like the idea of finding the initial points automatically but your implementation doesn't seem to work well, and you don't provide the user the ability to provide their own initial points as a backup.
+
+## equality of workload:
+
+Good.
+
+## writeup:
+
+Good, with a couple examples. However, I would have liked to see discussion of the strategy for finding the initial points. Also you don't explain your thinking about caching and underflow of the log density. 
