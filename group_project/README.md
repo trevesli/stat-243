@@ -1,6 +1,12 @@
 # ars-dev
 Adaptive Rejection Sampling for STAT 243 Final Project at UC Berkeley, Fall 2024.
 
+## Group Project (Originally developed in ars-dev)
+
+This directory contains a copy of a team-based project.
+
+My contributions include testing; installation and package setup; and finalization of the funtional structure
+
 ## Installation
 
 ```bash
