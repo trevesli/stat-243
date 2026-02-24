@@ -1,0 +1,19 @@
+# Python-related metadata
+__pycache__/
+.egg-info/
+.ipynb_checkpoints
+.pytest_cache
+
+# Virtual Environment
+venv/
+.env/
+.Python
+
+# Logs and debug files
+*.log
+*.txt
+*.out
+*.err
+
+# Build artifacts
+build/
